@@ -53,6 +53,9 @@ export default function CampaignDetailPage() {
     const [importResult, setImportResult] = useState<string | null>(null);
     const [importSourceName, setImportSourceName] = useState("");
 
+    // Filter state
+    const [selectedNeighborhood, setSelectedNeighborhood] = useState<string | null>(null);
+
     const loadCampaign = useCallback(async () => {
         setLoading(true);
 
@@ -377,16 +380,22 @@ export default function CampaignDetailPage() {
                             )}
                         </div>
 
-                        {/* Neighborhood list */}
-                        <div className="space-y-2">
+                        {/* Existing neighborhoods */}
+                        <div className="space-y-3">
                             {neighborhoods.map((nb) => (
                                 <div
                                     key={nb.id}
-                                    className="flex items-center justify-between p-3 rounded-lg bg-surface border border-border"
+                                    onClick={() => setSelectedNeighborhood(
+                                        selectedNeighborhood === nb.id ? null : nb.id
+                                    )}
+                                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${selectedNeighborhood === nb.id
+                                            ? "bg-primary/20 border-primary"
+                                            : "bg-surface border-border hover:border-primary/50"
+                                        }`}
                                 >
                                     <div className="flex-1 min-w-0">
                                         <div className="text-sm font-medium text-foreground truncate">
-                                            {nb.name}
+                                            {nb.display_name || nb.name}
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className={`badge badge-${nb.status}`}>
@@ -402,7 +411,10 @@ export default function CampaignDetailPage() {
                                     <div className="flex gap-1 ml-2">
                                         {nb.status !== "completed" && (
                                             <button
-                                                onClick={() => searchVenuesInNeighborhood(nb.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    searchVenuesInNeighborhood(nb.id);
+                                                }}
                                                 disabled={searchingVenues === nb.id}
                                                 className="px-3 py-1.5 rounded-md bg-primary/20 hover:bg-primary/30 text-primary text-xs font-medium disabled:opacity-50"
                                                 title="Search venues"
@@ -415,7 +427,10 @@ export default function CampaignDetailPage() {
                                             </button>
                                         )}
                                         <button
-                                            onClick={() => deleteNeighborhood(nb.id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteNeighborhood(nb.id);
+                                            }}
                                             className="px-2 py-1.5 rounded-md hover:bg-danger/20 text-danger/60 hover:text-danger text-xs"
                                             title="Delete"
                                         >
@@ -439,7 +454,9 @@ export default function CampaignDetailPage() {
                     <div className="glass-card p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-lg font-semibold text-foreground">
-                                📋 Venues ({venues.length})
+                                📋 Venues ({selectedNeighborhood
+                                    ? `${venues.filter(v => v.neighborhood_id === selectedNeighborhood).length} / ${venues.length}`
+                                    : venues.length})
                             </h2>
                             <div className="flex gap-2">
                                 <button
@@ -538,239 +555,241 @@ export default function CampaignDetailPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {venues.map((venue) => {
-                                            const personnel = personnelMap[venue.id] || [];
-                                            const isExpanded = expandedVenue === venue.id;
+                                        {venues
+                                            .filter(v => !selectedNeighborhood || v.neighborhood_id === selectedNeighborhood)
+                                            .map((venue) => {
+                                                const personnel = personnelMap[venue.id] || [];
+                                                const isExpanded = expandedVenue === venue.id;
 
-                                            return (
-                                                <>
-                                                    <tr
-                                                        key={venue.id}
-                                                        className="cursor-pointer"
-                                                        onClick={() =>
-                                                            setExpandedVenue(
-                                                                isExpanded ? null : venue.id
-                                                            )
-                                                        }
-                                                    >
-                                                        <td>
-                                                            <div className="font-medium text-foreground">
-                                                                {venue.name}
-                                                            </div>
-                                                            <div className="text-xs text-muted truncate max-w-[200px]">
-                                                                {venue.address}
-                                                            </div>
-                                                        </td>
-                                                        <td>
-                                                            {venue.rating ? (
-                                                                <span className="text-warning font-medium">
-                                                                    ⭐ {venue.rating}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-muted">—</span>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            {venue.phone ? (
-                                                                <a
-                                                                    href={`tel:${venue.phone}`}
-                                                                    className="text-info hover:underline"
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                >
-                                                                    {venue.phone}
-                                                                </a>
-                                                            ) : (
-                                                                <span className="text-muted">—</span>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            {personnel.length > 0 ? (
-                                                                <span className="badge badge-researched">
-                                                                    {personnel.length} found
-                                                                </span>
-                                                            ) : venue.status === "new" ? (
-                                                                <span className="text-muted text-xs">
-                                                                    Not researched
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-muted">—</span>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            <span className={`badge badge-${venue.status}`}>
-                                                                {venue.status}
-                                                            </span>
-                                                        </td>
-                                                        <td onClick={(e) => e.stopPropagation()}>
-                                                            <div className="flex gap-1">
-                                                                {venue.status === "new" && (
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            researchPersonnel(venue.id);
-                                                                        }}
-                                                                        disabled={researchingVenue === venue.id}
-                                                                        className="px-2 py-1 rounded text-xs bg-secondary/20 text-secondary hover:bg-secondary/30 disabled:opacity-50"
-                                                                        title="Research personnel"
-                                                                    >
-                                                                        {researchingVenue === venue.id
-                                                                            ? "⏳"
-                                                                            : "🤖"}
-                                                                    </button>
+                                                return (
+                                                    <>
+                                                        <tr
+                                                            key={venue.id}
+                                                            className="cursor-pointer"
+                                                            onClick={() =>
+                                                                setExpandedVenue(
+                                                                    isExpanded ? null : venue.id
+                                                                )
+                                                            }
+                                                        >
+                                                            <td>
+                                                                <div className="font-medium text-foreground">
+                                                                    {venue.name}
+                                                                </div>
+                                                                <div className="text-xs text-muted truncate max-w-[200px]">
+                                                                    {venue.address}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                {venue.rating ? (
+                                                                    <span className="text-warning font-medium">
+                                                                        ⭐ {venue.rating}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-muted">—</span>
                                                                 )}
-                                                                {venue.status !== "called" && (
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            updateVenueStatus(venue.id, "called");
-                                                                        }}
-                                                                        className="px-2 py-1 rounded text-xs bg-success/20 text-success hover:bg-success/30"
-                                                                        title="Mark as called"
-                                                                    >
-                                                                        ✅
-                                                                    </button>
-                                                                )}
-                                                                {venue.status !== "skipped" && (
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            updateVenueStatus(venue.id, "skipped");
-                                                                        }}
-                                                                        className="px-2 py-1 rounded text-xs bg-danger/20 text-danger hover:bg-danger/30"
-                                                                        title="Skip"
-                                                                    >
-                                                                        ⏭️
-                                                                    </button>
-                                                                )}
-                                                                {venue.google_maps_url && (
+                                                            </td>
+                                                            <td>
+                                                                {venue.phone ? (
                                                                     <a
-                                                                        href={venue.google_maps_url}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
+                                                                        href={`tel:${venue.phone}`}
+                                                                        className="text-info hover:underline"
                                                                         onClick={(e) => e.stopPropagation()}
-                                                                        className="px-2 py-1 rounded text-xs bg-info/20 text-info hover:bg-info/30"
-                                                                        title="Open in Maps"
                                                                     >
-                                                                        🗺️
+                                                                        {venue.phone}
                                                                     </a>
+                                                                ) : (
+                                                                    <span className="text-muted">—</span>
                                                                 )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-
-                                                    {/* Expanded details */}
-                                                    {isExpanded && (
-                                                        <tr key={`${venue.id}-details`}>
-                                                            <td colSpan={6} className="!p-0">
-                                                                <div className="bg-surface/50 p-6 border-t border-border">
-                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                                        {/* Venue Info */}
-                                                                        <div>
-                                                                            <h4 className="text-sm font-semibold text-foreground mb-3">
-                                                                                Venue Details
-                                                                            </h4>
-                                                                            <dl className="space-y-2 text-sm">
-                                                                                <div>
-                                                                                    <dt className="text-muted">Address</dt>
-                                                                                    <dd>{venue.address || "—"}</dd>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <dt className="text-muted">Phone</dt>
-                                                                                    <dd>{venue.phone || "—"}</dd>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <dt className="text-muted">Website</dt>
-                                                                                    <dd>
-                                                                                        {venue.website ? (
-                                                                                            <a
-                                                                                                href={venue.website}
-                                                                                                target="_blank"
-                                                                                                rel="noopener noreferrer"
-                                                                                                className="text-info hover:underline"
-                                                                                            >
-                                                                                                {venue.website}
-                                                                                            </a>
-                                                                                        ) : (
-                                                                                            "—"
-                                                                                        )}
-                                                                                    </dd>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <dt className="text-muted">
-                                                                                        Days Open
-                                                                                    </dt>
-                                                                                    <dd>
-                                                                                        {venue.opening_days_count
-                                                                                            ? `${venue.opening_days_count} days/week`
-                                                                                            : "—"}
-                                                                                    </dd>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <dt className="text-muted">
-                                                                                        Categories
-                                                                                    </dt>
-                                                                                    <dd>
-                                                                                        {venue.types?.join(", ") || "—"}
-                                                                                    </dd>
-                                                                                </div>
-                                                                            </dl>
-                                                                        </div>
-
-                                                                        {/* Personnel */}
-                                                                        <div>
-                                                                            <h4 className="text-sm font-semibold text-foreground mb-3">
-                                                                                Key Personnel
-                                                                            </h4>
-                                                                            {personnel.length > 0 ? (
-                                                                                <div className="space-y-3">
-                                                                                    {personnel.map((p) => (
-                                                                                        <div
-                                                                                            key={p.id}
-                                                                                            className="p-3 rounded-lg bg-background border border-border"
-                                                                                        >
-                                                                                            <div className="flex items-center gap-2 mb-1">
-                                                                                                <span className="font-medium text-foreground">
-                                                                                                    {p.name}
-                                                                                                </span>
-                                                                                                {p.title && (
-                                                                                                    <span className="badge badge-new">
-                                                                                                        {p.title}
-                                                                                                    </span>
-                                                                                                )}
-                                                                                            </div>
-                                                                                            {p.phone && (
-                                                                                                <div className="text-xs text-muted">
-                                                                                                    📞 {p.phone}
-                                                                                                </div>
-                                                                                            )}
-                                                                                            {p.email && (
-                                                                                                <div className="text-xs text-muted">
-                                                                                                    ✉️ {p.email}
-                                                                                                </div>
-                                                                                            )}
-                                                                                            {p.recommended_pitch && (
-                                                                                                <div className="mt-2 text-xs text-muted italic border-t border-border pt-2">
-                                                                                                    💡 {p.recommended_pitch}
-                                                                                                </div>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    ))}
-                                                                                </div>
-                                                                            ) : (
-                                                                                <p className="text-sm text-muted">
-                                                                                    No personnel found yet. Click 🤖 to
-                                                                                    research.
-                                                                                </p>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
+                                                            </td>
+                                                            <td>
+                                                                {personnel.length > 0 ? (
+                                                                    <span className="badge badge-researched">
+                                                                        {personnel.length} found
+                                                                    </span>
+                                                                ) : venue.status === "new" ? (
+                                                                    <span className="text-muted text-xs">
+                                                                        Not researched
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-muted">—</span>
+                                                                )}
+                                                            </td>
+                                                            <td>
+                                                                <span className={`badge badge-${venue.status}`}>
+                                                                    {venue.status}
+                                                                </span>
+                                                            </td>
+                                                            <td onClick={(e) => e.stopPropagation()}>
+                                                                <div className="flex gap-1">
+                                                                    {venue.status === "new" && (
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                researchPersonnel(venue.id);
+                                                                            }}
+                                                                            disabled={researchingVenue === venue.id}
+                                                                            className="px-2 py-1 rounded text-xs bg-secondary/20 text-secondary hover:bg-secondary/30 disabled:opacity-50"
+                                                                            title="Research personnel"
+                                                                        >
+                                                                            {researchingVenue === venue.id
+                                                                                ? "⏳"
+                                                                                : "🤖"}
+                                                                        </button>
+                                                                    )}
+                                                                    {venue.status !== "called" && (
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                updateVenueStatus(venue.id, "called");
+                                                                            }}
+                                                                            className="px-2 py-1 rounded text-xs bg-success/20 text-success hover:bg-success/30"
+                                                                            title="Mark as called"
+                                                                        >
+                                                                            ✅
+                                                                        </button>
+                                                                    )}
+                                                                    {venue.status !== "skipped" && (
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                updateVenueStatus(venue.id, "skipped");
+                                                                            }}
+                                                                            className="px-2 py-1 rounded text-xs bg-danger/20 text-danger hover:bg-danger/30"
+                                                                            title="Skip"
+                                                                        >
+                                                                            ⏭️
+                                                                        </button>
+                                                                    )}
+                                                                    {venue.google_maps_url && (
+                                                                        <a
+                                                                            href={venue.google_maps_url}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            className="px-2 py-1 rounded text-xs bg-info/20 text-info hover:bg-info/30"
+                                                                            title="Open in Maps"
+                                                                        >
+                                                                            🗺️
+                                                                        </a>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                         </tr>
-                                                    )}
-                                                </>
-                                            );
-                                        })}
+
+                                                        {/* Expanded details */}
+                                                        {isExpanded && (
+                                                            <tr key={`${venue.id}-details`}>
+                                                                <td colSpan={6} className="!p-0">
+                                                                    <div className="bg-surface/50 p-6 border-t border-border">
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                                            {/* Venue Info */}
+                                                                            <div>
+                                                                                <h4 className="text-sm font-semibold text-foreground mb-3">
+                                                                                    Venue Details
+                                                                                </h4>
+                                                                                <dl className="space-y-2 text-sm">
+                                                                                    <div>
+                                                                                        <dt className="text-muted">Address</dt>
+                                                                                        <dd>{venue.address || "—"}</dd>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <dt className="text-muted">Phone</dt>
+                                                                                        <dd>{venue.phone || "—"}</dd>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <dt className="text-muted">Website</dt>
+                                                                                        <dd>
+                                                                                            {venue.website ? (
+                                                                                                <a
+                                                                                                    href={venue.website}
+                                                                                                    target="_blank"
+                                                                                                    rel="noopener noreferrer"
+                                                                                                    className="text-info hover:underline"
+                                                                                                >
+                                                                                                    {venue.website}
+                                                                                                </a>
+                                                                                            ) : (
+                                                                                                "—"
+                                                                                            )}
+                                                                                        </dd>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <dt className="text-muted">
+                                                                                            Days Open
+                                                                                        </dt>
+                                                                                        <dd>
+                                                                                            {venue.opening_days_count
+                                                                                                ? `${venue.opening_days_count} days/week`
+                                                                                                : "—"}
+                                                                                        </dd>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <dt className="text-muted">
+                                                                                            Categories
+                                                                                        </dt>
+                                                                                        <dd>
+                                                                                            {venue.types?.join(", ") || "—"}
+                                                                                        </dd>
+                                                                                    </div>
+                                                                                </dl>
+                                                                            </div>
+
+                                                                            {/* Personnel */}
+                                                                            <div>
+                                                                                <h4 className="text-sm font-semibold text-foreground mb-3">
+                                                                                    Key Personnel
+                                                                                </h4>
+                                                                                {personnel.length > 0 ? (
+                                                                                    <div className="space-y-3">
+                                                                                        {personnel.map((p) => (
+                                                                                            <div
+                                                                                                key={p.id}
+                                                                                                className="p-3 rounded-lg bg-background border border-border"
+                                                                                            >
+                                                                                                <div className="flex items-center gap-2 mb-1">
+                                                                                                    <span className="font-medium text-foreground">
+                                                                                                        {p.name}
+                                                                                                    </span>
+                                                                                                    {p.title && (
+                                                                                                        <span className="badge badge-new">
+                                                                                                            {p.title}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                                {p.phone && (
+                                                                                                    <div className="text-xs text-muted">
+                                                                                                        📞 {p.phone}
+                                                                                                    </div>
+                                                                                                )}
+                                                                                                {p.email && (
+                                                                                                    <div className="text-xs text-muted">
+                                                                                                        ✉️ {p.email}
+                                                                                                    </div>
+                                                                                                )}
+                                                                                                {p.recommended_pitch && (
+                                                                                                    <div className="mt-2 text-xs text-muted italic border-t border-border pt-2">
+                                                                                                        💡 {p.recommended_pitch}
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <p className="text-sm text-muted">
+                                                                                        No personnel found yet. Click 🤖 to
+                                                                                        research.
+                                                                                    </p>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </>
+                                                );
+                                            })}
                                     </tbody>
                                 </table>
                             </div>
