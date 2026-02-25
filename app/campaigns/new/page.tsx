@@ -39,7 +39,12 @@ const VENUE_GROUPS: Array<{ label: string; emoji: string; types: string[] }> = [
     {
         label: "Bars & Nightlife",
         emoji: "🍺",
-        types: ["bar", "pub", "wine_bar", "brewery"],
+        types: ["bar", "pub", "wine_bar", "brewery", "nightclub", "lounge", "cocktail_bar"],
+    },
+    {
+        label: "Hospitality & Leisure",
+        emoji: "🏨",
+        types: ["hotel", "gym", "spa", "salon"],
     },
 ];
 
@@ -67,6 +72,7 @@ export default function NewCampaignPage() {
     const [productDescription, setProductDescription] = useState("");
     const [rules, setRules] = useState<RuleInput[]>([{ ...emptyRule }]);
     const [saving, setSaving] = useState(false);
+    const [customTypeInput, setCustomTypeInput] = useState<Record<number, string>>({});
     // Track which groups are expanded per rule
     const [expandedGroups, setExpandedGroups] = useState<
         Record<string, boolean>
@@ -99,6 +105,16 @@ export default function NewCampaignPage() {
         const current = { ...rules[ruleIndex].custom_notes_per_type };
         current[type] = notes;
         updateRule(ruleIndex, "custom_notes_per_type", current);
+    }
+
+    function addCustomType(ruleIndex: number) {
+        const raw = (customTypeInput[ruleIndex] || "").trim().toLowerCase().replace(/\s+/g, "_");
+        if (!raw) return;
+        const current = rules[ruleIndex].venue_types;
+        if (!current.includes(raw)) {
+            updateRule(ruleIndex, "venue_types", [...current, raw]);
+        }
+        setCustomTypeInput((prev) => ({ ...prev, [ruleIndex]: "" }));
     }
 
     function toggleGroup(ruleIndex: number, groupLabel: string) {
@@ -354,6 +370,32 @@ export default function NewCampaignPage() {
                                                 );
                                             })}
                                         </div>
+                                    </div>
+
+                                    {/* Custom type input */}
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={customTypeInput[i] || ""}
+                                            onChange={(e) =>
+                                                setCustomTypeInput((prev) => ({ ...prev, [i]: e.target.value }))
+                                            }
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                    e.preventDefault();
+                                                    addCustomType(i);
+                                                }
+                                            }}
+                                            placeholder="Type a custom venue type..."
+                                            className="flex-1 px-3 py-2 rounded-lg bg-background border border-border focus:border-primary focus:outline-none text-sm text-foreground placeholder:text-muted"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => addCustomType(i)}
+                                            className="px-3 py-2 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary text-sm font-medium transition-colors"
+                                        >
+                                            + Add
+                                        </button>
                                     </div>
 
                                     {/* Rating + Days */}
