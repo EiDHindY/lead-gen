@@ -49,7 +49,7 @@ interface RuleInput {
     min_opening_days: number;
     exclude_chains: boolean;
     exclude_keywords: string;
-    custom_notes: string;
+    custom_notes_per_type: Record<string, string>; // Per venue type
 }
 
 const emptyRule: RuleInput = {
@@ -58,7 +58,7 @@ const emptyRule: RuleInput = {
     min_opening_days: 5,
     exclude_chains: false,
     exclude_keywords: "",
-    custom_notes: "",
+    custom_notes_per_type: {},
 };
 
 export default function NewCampaignPage() {
@@ -93,6 +93,12 @@ export default function NewCampaignPage() {
             ? current.filter((t) => t !== type)
             : [...current, type];
         updateRule(ruleIndex, "venue_types", updated);
+    }
+
+    function updateTypeNotes(ruleIndex: number, type: string, notes: string) {
+        const current = { ...rules[ruleIndex].custom_notes_per_type };
+        current[type] = notes;
+        updateRule(ruleIndex, "custom_notes_per_type", current);
     }
 
     function toggleGroup(ruleIndex: number, groupLabel: string) {
@@ -160,7 +166,7 @@ export default function NewCampaignPage() {
                     min_opening_days: rule.min_opening_days,
                     exclude_chains: rule.exclude_chains,
                     exclude_keywords: keywords,
-                    custom_notes: rule.custom_notes || null,
+                    custom_notes: rule.custom_notes_per_type[venueType] || null,
                 });
             }
         }
@@ -282,8 +288,8 @@ export default function NewCampaignPage() {
                                                             type="button"
                                                             onClick={() => toggleGroup(i, group.label)}
                                                             className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-colors ${someSelected
-                                                                    ? "bg-primary/10 text-foreground"
-                                                                    : "bg-surface text-muted hover:text-foreground"
+                                                                ? "bg-primary/10 text-foreground"
+                                                                : "bg-surface text-muted hover:text-foreground"
                                                                 }`}
                                                         >
                                                             <div className="flex items-center gap-2">
@@ -332,8 +338,8 @@ export default function NewCampaignPage() {
                                                                                     toggleVenueType(i, type)
                                                                                 }
                                                                                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isSelected
-                                                                                        ? "bg-primary text-white"
-                                                                                        : "bg-surface border border-border text-muted hover:text-foreground hover:border-border-light"
+                                                                                    ? "bg-primary text-white"
+                                                                                    : "bg-surface border border-border text-muted hover:text-foreground hover:border-border-light"
                                                                                     }`}
                                                                             >
                                                                                 {isSelected ? "✓ " : ""}
@@ -438,25 +444,38 @@ export default function NewCampaignPage() {
                                         />
                                     </div>
 
-                                    {/* Custom Notes */}
-                                    <div>
-                                        <label className="block text-xs font-medium text-foreground mb-1">
-                                            Custom Notes for AI
-                                        </label>
-                                        <p className="text-muted text-xs mb-2">
-                                            Special criteria the AI should consider when evaluating
-                                            venues
-                                        </p>
-                                        <input
-                                            type="text"
-                                            value={rule.custom_notes}
-                                            onChange={(e) =>
-                                                updateRule(i, "custom_notes", e.target.value)
-                                            }
-                                            placeholder="e.g., Only fancy restaurants, 200+ seats"
-                                            className="w-full px-3 py-2 rounded-lg bg-background border border-border focus:border-primary focus:outline-none text-sm text-foreground placeholder:text-muted"
-                                        />
-                                    </div>
+                                    {/* Per-Type AI Notes (shown for selected types) */}
+                                    {rule.venue_types.length > 0 && (
+                                        <div>
+                                            <label className="block text-xs font-medium text-foreground mb-2">
+                                                AI Notes per Venue Type
+                                            </label>
+                                            <p className="text-muted text-xs mb-3">
+                                                Add specific criteria for each venue type
+                                            </p>
+                                            <div className="space-y-2">
+                                                {rule.venue_types.map((type) => (
+                                                    <div
+                                                        key={type}
+                                                        className="flex items-center gap-3"
+                                                    >
+                                                        <span className="text-xs font-medium text-primary w-24 shrink-0">
+                                                            {type.replace(/_/g, " ")}
+                                                        </span>
+                                                        <input
+                                                            type="text"
+                                                            value={rule.custom_notes_per_type[type] || ""}
+                                                            onChange={(e) =>
+                                                                updateTypeNotes(i, type, e.target.value)
+                                                            }
+                                                            placeholder={`e.g., Only fancy ${type.replace(/_/g, " ")}s`}
+                                                            className="flex-1 px-3 py-1.5 rounded-lg bg-background border border-border focus:border-primary focus:outline-none text-xs text-foreground placeholder:text-muted"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
