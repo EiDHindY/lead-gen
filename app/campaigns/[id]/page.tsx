@@ -605,9 +605,10 @@ export default function CampaignDetailPage() {
                                                             <div className="flex gap-1">
                                                                 {venue.status === "new" && (
                                                                     <button
-                                                                        onClick={() =>
-                                                                            researchPersonnel(venue.id)
-                                                                        }
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            researchPersonnel(venue.id);
+                                                                        }}
                                                                         disabled={researchingVenue === venue.id}
                                                                         className="px-2 py-1 rounded text-xs bg-secondary/20 text-secondary hover:bg-secondary/30 disabled:opacity-50"
                                                                         title="Research personnel"
@@ -619,9 +620,10 @@ export default function CampaignDetailPage() {
                                                                 )}
                                                                 {venue.status !== "called" && (
                                                                     <button
-                                                                        onClick={() =>
-                                                                            updateVenueStatus(venue.id, "called")
-                                                                        }
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            updateVenueStatus(venue.id, "called");
+                                                                        }}
                                                                         className="px-2 py-1 rounded text-xs bg-success/20 text-success hover:bg-success/30"
                                                                         title="Mark as called"
                                                                     >
@@ -630,9 +632,10 @@ export default function CampaignDetailPage() {
                                                                 )}
                                                                 {venue.status !== "skipped" && (
                                                                     <button
-                                                                        onClick={() =>
-                                                                            updateVenueStatus(venue.id, "skipped")
-                                                                        }
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            updateVenueStatus(venue.id, "skipped");
+                                                                        }}
                                                                         className="px-2 py-1 rounded text-xs bg-danger/20 text-danger hover:bg-danger/30"
                                                                         title="Skip"
                                                                     >
@@ -644,6 +647,7 @@ export default function CampaignDetailPage() {
                                                                         href={venue.google_maps_url}
                                                                         target="_blank"
                                                                         rel="noopener noreferrer"
+                                                                        onClick={(e) => e.stopPropagation()}
                                                                         className="px-2 py-1 rounded text-xs bg-info/20 text-info hover:bg-info/30"
                                                                         title="Open in Maps"
                                                                     >
