@@ -51,6 +51,7 @@ export default function CampaignDetailPage() {
     const [importText, setImportText] = useState("");
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState<string | null>(null);
+    const [importSourceName, setImportSourceName] = useState("");
 
     const loadCampaign = useCallback(async () => {
         setLoading(true);
@@ -266,7 +267,11 @@ export default function CampaignDetailPage() {
             const res = await fetch("/api/import-venues", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ campaignId: id, text: importText }),
+                body: JSON.stringify({
+                    campaignId: id,
+                    sourceName: importSourceName.trim() || undefined,
+                    text: importText
+                }),
             });
 
             const data = await res.json();
@@ -479,6 +484,20 @@ export default function CampaignDetailPage() {
                                 <p className="text-xs text-muted mb-3">
                                     Paste venue names and addresses — one venue name per line, followed by its address on the next line.
                                 </p>
+
+                                <div className="mb-3">
+                                    <label className="block text-xs font-medium text-foreground mb-1">
+                                        Source / List Name (Optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={importSourceName}
+                                        onChange={(e) => setImportSourceName(e.target.value)}
+                                        placeholder="e.g., March 2024 Trade Show List"
+                                        className="w-full px-3 py-2 rounded-lg bg-background border border-border focus:border-primary focus:outline-none text-sm text-foreground placeholder:text-muted"
+                                    />
+                                </div>
+
                                 <textarea
                                     value={importText}
                                     onChange={(e) => setImportText(e.target.value)}

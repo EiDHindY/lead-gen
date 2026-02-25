@@ -37,13 +37,46 @@ function generateMapsUrl(name: string, address: string): string {
 
 export async function POST(req: NextRequest) {
     try {
-        const { campaignId, neighborhoodId, text } = await req.json();
+        const { campaignId, neighborhoodId, sourceName, text } = await req.json();
 
         if (!campaignId || !text) {
             return NextResponse.json(
                 { error: "Missing campaignId or text" },
                 { status: 400 }
             );
+        }
+
+        let finalNeighborhoodId = neighborhoodId;
+
+        // If a source name was provided, create/find a neighborhood to represent this import
+        if (sourceName) {
+            // See if one with this exact name already exists for this campaign
+            const { data: existingNb } = await supabase
+                .from("neighborhoods")
+                .select("id")
+                .eq("campaign_id", campaignId)
+                .ilike("name", sourceName)
+                .single();
+
+            if (existingNb) {
+                finalNeighborhoodId = existingNb.id;
+            } else {
+                // Create a new one
+                const { data: newNb, error: nbError } = await supabase
+                    .from("neighborhoods")
+                    .insert({
+                        campaign_id: campaignId,
+                        name: sourceName,
+                        display_name: sourceName,
+                        status: "completed", // Since we already have the venues
+                    })
+                    .select("id")
+                    .single();
+
+                if (!nbError && newNb) {
+                    finalNeighborhoodId = newNb.id;
+                }
+            }
         }
 
         const parsed = parseVenueText(text);
@@ -81,7 +114,7 @@ export async function POST(req: NextRequest) {
                 .from("venues")
                 .insert({
                     campaign_id: campaignId,
-                    neighborhood_id: neighborhoodId || null,
+                    neighborhood_id: finalNeighborhoodId || null,
                     fsq_id: fsqId,
                     name: venue.name,
                     address: venue.address,
