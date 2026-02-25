@@ -46,6 +46,12 @@ export default function CampaignDetailPage() {
     // ── Expanded venue for details ──
     const [expandedVenue, setExpandedVenue] = useState<string | null>(null);
 
+    // ── Import state ──
+    const [showImport, setShowImport] = useState(false);
+    const [importText, setImportText] = useState("");
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState<string | null>(null);
+
     const loadCampaign = useCallback(async () => {
         setLoading(true);
 
@@ -238,6 +244,37 @@ export default function CampaignDetailPage() {
         loadCampaign();
     }
 
+    // ── Import venues from pasted text ──
+    async function importVenues() {
+        if (!importText.trim()) return;
+        setImporting(true);
+        setImportResult(null);
+
+        try {
+            const res = await fetch("/api/import-venues", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ campaignId: id, text: importText }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setImportResult(`❌ ${data.error || "Import failed"}`);
+            } else {
+                setImportResult(
+                    `✅ Imported ${data.imported} venues (${data.duplicatesSkipped} duplicates skipped)`
+                );
+                setImportText("");
+                loadCampaign();
+            }
+        } catch {
+            setImportResult("❌ Failed to import venues");
+        }
+
+        setImporting(false);
+    }
+
     if (loading) {
         return (
             <div className="text-center text-muted py-16">Loading campaign...</div>
@@ -388,6 +425,12 @@ export default function CampaignDetailPage() {
                                 📋 Venues ({venues.length})
                             </h2>
                             <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowImport(!showImport)}
+                                    className="px-4 py-2 rounded-lg bg-warning/20 hover:bg-warning/30 text-warning text-sm font-medium transition-colors"
+                                >
+                                    📋 Import
+                                </button>
                                 {venues.some((v) => v.status === "new") && (
                                     <button
                                         onClick={researchAll}
@@ -407,9 +450,40 @@ export default function CampaignDetailPage() {
                             </div>
                         </div>
 
+                        {/* Import Panel */}
+                        {showImport && (
+                            <div className="mb-6 p-4 rounded-lg bg-surface border border-border">
+                                <h3 className="text-sm font-medium text-foreground mb-2">
+                                    📋 Paste Existing Venues
+                                </h3>
+                                <p className="text-xs text-muted mb-3">
+                                    Paste venue names and addresses — one venue name per line, followed by its address on the next line.
+                                </p>
+                                <textarea
+                                    value={importText}
+                                    onChange={(e) => setImportText(e.target.value)}
+                                    placeholder={`Bondi Public Bar\n180 Campbell Parade, Bondi Beach NSW 2026\n\nSalty's Bondi\n108 Campbell Parade, Bondi Beach NSW 2026`}
+                                    rows={8}
+                                    className="w-full px-3 py-2 rounded-lg bg-background border border-border focus:border-primary focus:outline-none text-sm text-foreground placeholder:text-muted font-mono resize-none mb-3"
+                                />
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={importVenues}
+                                        disabled={importing || !importText.trim()}
+                                        className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium disabled:opacity-50"
+                                    >
+                                        {importing ? "Importing..." : "Import Venues"}
+                                    </button>
+                                    {importResult && (
+                                        <span className="text-sm">{importResult}</span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {venues.length === 0 ? (
                             <p className="text-center text-muted py-12">
-                                No venues yet. Add neighborhoods and search to find leads!
+                                No venues yet. Add neighborhoods and search, or paste existing venues!
                             </p>
                         ) : (
                             <div className="overflow-x-auto">
