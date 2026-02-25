@@ -212,6 +212,16 @@ export default function CampaignDetailPage() {
         }
     }
 
+    // ── Mark ALL venues as called ──
+    async function markAllCalled() {
+        const newVenues = venues.filter((v) => v.status === "new" || v.status === "researched");
+        if (!confirm(`Mark ${newVenues.length} venues as called?`)) return;
+        for (const venue of newVenues) {
+            await supabase.from("venues").update({ status: "called" }).eq("id", venue.id);
+        }
+        loadCampaign();
+    }
+
     // ── Update venue status ──
     async function updateVenueStatus(
         venueId: string,
@@ -431,6 +441,14 @@ export default function CampaignDetailPage() {
                                 >
                                     📋 Import
                                 </button>
+                                {venues.some((v) => v.status === "new" || v.status === "researched") && (
+                                    <button
+                                        onClick={markAllCalled}
+                                        className="px-4 py-2 rounded-lg bg-success/20 hover:bg-success/30 text-success text-sm font-medium transition-colors"
+                                    >
+                                        ✅ Mark All Called
+                                    </button>
+                                )}
                                 {venues.some((v) => v.status === "new") && (
                                     <button
                                         onClick={researchAll}
