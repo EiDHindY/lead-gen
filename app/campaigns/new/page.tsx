@@ -54,18 +54,18 @@ const VENUE_GROUPS: Array<{ label: string; emoji: string; types: string[] }> = [
 ];
 
 interface RuleInput {
-    venue_types: string[]; // Multiple types per rule
-    min_rating: number;
-    min_opening_days: number;
+    venue_types: string[];
+    min_rating_per_type: Record<string, number>;
+    min_days_per_type: Record<string, number>;
     exclude_chains: boolean;
     exclude_keywords: string;
-    custom_notes_per_type: Record<string, string>; // Per venue type
+    custom_notes_per_type: Record<string, string>;
 }
 
 const emptyRule: RuleInput = {
     venue_types: [],
-    min_rating: 4.0,
-    min_opening_days: 5,
+    min_rating_per_type: {},
+    min_days_per_type: {},
     exclude_chains: false,
     exclude_keywords: "",
     custom_notes_per_type: {},
@@ -110,6 +110,18 @@ export default function NewCampaignPage() {
         const current = { ...rules[ruleIndex].custom_notes_per_type };
         current[type] = notes;
         updateRule(ruleIndex, "custom_notes_per_type", current);
+    }
+
+    function updateTypeRating(ruleIndex: number, type: string, val: number) {
+        const current = { ...rules[ruleIndex].min_rating_per_type };
+        current[type] = val;
+        updateRule(ruleIndex, "min_rating_per_type", current);
+    }
+
+    function updateTypeDays(ruleIndex: number, type: string, val: number) {
+        const current = { ...rules[ruleIndex].min_days_per_type };
+        current[type] = val;
+        updateRule(ruleIndex, "min_days_per_type", current);
     }
 
     function addCustomType(ruleIndex: number) {
@@ -183,8 +195,8 @@ export default function NewCampaignPage() {
                 await supabase.from("campaign_rules").insert({
                     campaign_id: campaign.id,
                     venue_type: venueType,
-                    min_rating: rule.min_rating,
-                    min_opening_days: rule.min_opening_days,
+                    min_rating: rule.min_rating_per_type[venueType] ?? 4.0,
+                    min_opening_days: rule.min_days_per_type[venueType] ?? 5,
                     exclude_chains: rule.exclude_chains,
                     exclude_keywords: keywords,
                     custom_notes: rule.custom_notes_per_type[venueType] || null,
@@ -403,58 +415,6 @@ export default function NewCampaignPage() {
                                         </button>
                                     </div>
 
-                                    {/* Rating + Days */}
-                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-foreground mb-1">
-                                                Min Rating: {rule.min_rating} ⭐
-                                            </label>
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="5"
-                                                step="0.5"
-                                                value={rule.min_rating}
-                                                onChange={(e) =>
-                                                    updateRule(
-                                                        i,
-                                                        "min_rating",
-                                                        parseFloat(e.target.value)
-                                                    )
-                                                }
-                                                className="w-full accent-primary"
-                                            />
-                                            <div className="flex justify-between text-xs text-muted">
-                                                <span>Any</span>
-                                                <span>5</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-foreground mb-1">
-                                                Min Days: {rule.min_opening_days} 📅
-                                            </label>
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="7"
-                                                step="1"
-                                                value={rule.min_opening_days}
-                                                onChange={(e) =>
-                                                    updateRule(
-                                                        i,
-                                                        "min_opening_days",
-                                                        parseInt(e.target.value)
-                                                    )
-                                                }
-                                                className="w-full accent-primary"
-                                            />
-                                            <div className="flex justify-between text-xs text-muted">
-                                                <span>Any</span>
-                                                <span>7</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
                                     {/* Exclude Chains */}
                                     <div className="mb-4">
                                         <label className="flex items-center gap-3">
@@ -491,35 +451,73 @@ export default function NewCampaignPage() {
                                         />
                                     </div>
 
-                                    {/* Per-Type AI Notes (shown for selected types) */}
+                                    {/* Per-Type Settings */}
                                     {rule.venue_types.length > 0 && (
                                         <div>
                                             <label className="block text-xs font-medium text-foreground mb-2">
-                                                AI Notes per Venue Type
+                                                Per-Type Settings
                                             </label>
                                             <p className="text-muted text-xs mb-3">
-                                                Add specific criteria for each venue type
+                                                Set rating, opening days, and AI notes for each type
                                             </p>
-                                            <div className="space-y-2">
-                                                {rule.venue_types.map((type) => (
-                                                    <div
-                                                        key={type}
-                                                        className="flex items-center gap-3"
-                                                    >
-                                                        <span className="text-xs font-medium text-primary w-24 shrink-0">
-                                                            {type.replace(/_/g, " ")}
-                                                        </span>
-                                                        <input
-                                                            type="text"
-                                                            value={rule.custom_notes_per_type[type] || ""}
-                                                            onChange={(e) =>
-                                                                updateTypeNotes(i, type, e.target.value)
-                                                            }
-                                                            placeholder={`e.g., Only fancy ${type.replace(/_/g, " ")}s`}
-                                                            className="flex-1 px-3 py-1.5 rounded-lg bg-background border border-border focus:border-primary focus:outline-none text-xs text-foreground placeholder:text-muted"
-                                                        />
-                                                    </div>
-                                                ))}
+                                            <div className="space-y-3">
+                                                {rule.venue_types.map((type) => {
+                                                    const rating = rule.min_rating_per_type[type] ?? 4.0;
+                                                    const days = rule.min_days_per_type[type] ?? 5;
+                                                    return (
+                                                        <div
+                                                            key={type}
+                                                            className="p-3 rounded-lg bg-background border border-border"
+                                                        >
+                                                            <span className="text-xs font-semibold text-primary block mb-2">
+                                                                {type.replace(/_/g, " ")}
+                                                            </span>
+                                                            <div className="grid grid-cols-2 gap-3 mb-2">
+                                                                <div>
+                                                                    <label className="text-xs text-muted">
+                                                                        Rating: {rating} ⭐
+                                                                    </label>
+                                                                    <input
+                                                                        type="range"
+                                                                        min="0"
+                                                                        max="5"
+                                                                        step="0.5"
+                                                                        value={rating}
+                                                                        onChange={(e) =>
+                                                                            updateTypeRating(i, type, parseFloat(e.target.value))
+                                                                        }
+                                                                        className="w-full accent-primary"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-xs text-muted">
+                                                                        Days: {days} 📅
+                                                                    </label>
+                                                                    <input
+                                                                        type="range"
+                                                                        min="0"
+                                                                        max="7"
+                                                                        step="1"
+                                                                        value={days}
+                                                                        onChange={(e) =>
+                                                                            updateTypeDays(i, type, parseInt(e.target.value))
+                                                                        }
+                                                                        className="w-full accent-primary"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                value={rule.custom_notes_per_type[type] || ""}
+                                                                onChange={(e) =>
+                                                                    updateTypeNotes(i, type, e.target.value)
+                                                                }
+                                                                placeholder={`AI notes for ${type.replace(/_/g, " ")}...`}
+                                                                className="w-full px-3 py-1.5 rounded-lg bg-surface border border-border focus:border-primary focus:outline-none text-xs text-foreground placeholder:text-muted"
+                                                            />
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}

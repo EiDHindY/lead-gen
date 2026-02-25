@@ -216,9 +216,11 @@ export default function CampaignDetailPage() {
     async function markAllCalled() {
         const newVenues = venues.filter((v) => v.status === "new" || v.status === "researched");
         if (!confirm(`Mark ${newVenues.length} venues as called?`)) return;
-        for (const venue of newVenues) {
-            await supabase.from("venues").update({ status: "called" }).eq("id", venue.id);
-        }
+
+        // Use bulk update instead of a loop
+        const ids = newVenues.map((v) => v.id);
+        await supabase.from("venues").update({ status: "called" }).in("id", ids);
+
         loadCampaign();
     }
 
