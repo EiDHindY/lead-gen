@@ -20,7 +20,7 @@ const CHAIN_KEYWORDS = [
 
 export async function POST(req: NextRequest) {
     try {
-        const { campaignId, neighborhoodId } = await req.json();
+        const { campaignId, neighborhoodId, ruleId } = await req.json();
 
         if (!campaignId || !neighborhoodId) {
             return NextResponse.json(
@@ -30,10 +30,17 @@ export async function POST(req: NextRequest) {
         }
 
         // 1. Get campaign rules (per-venue-type)
-        const { data: rules, error: rulesErr } = await supabase
+        let rulesQuery = supabase
             .from("campaign_rules")
             .select("*")
             .eq("campaign_id", campaignId);
+
+        // If a specific ruleId was provided, only search for that one rule
+        if (ruleId) {
+            rulesQuery = rulesQuery.eq("id", ruleId);
+        }
+
+        const { data: rules, error: rulesErr } = await rulesQuery;
 
         if (rulesErr || !rules || rules.length === 0) {
             return NextResponse.json(
@@ -222,11 +229,23 @@ export async function POST(req: NextRequest) {
         await supabase
             .from("neighborhoods")
             .update({
-                status: "completed",
                 venues_found: (neighborhood.venues_found || 0) + allNewVenues.length,
                 searched_at: new Date().toISOString(),
             })
             .eq("id", neighborhoodId);
+
+        // Record this specific search in the tracking table
+        if (ruleId) {
+            await supabase.from("neighborhood_searches").upsert({
+                campaign_id: campaignId,
+                neighborhood_id: neighborhoodId,
+                rule_id: ruleId,
+                venues_found: allNewVenues.length,
+                searched_at: new Date().toISOString(),
+            }, {
+                onConflict: 'neighborhood_id, rule_id'
+            });
+        }
 
         return NextResponse.json({
             totalFound,

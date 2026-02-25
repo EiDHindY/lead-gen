@@ -14,6 +14,7 @@ export function useCampaignData(id: string) {
     const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
     const [venues, setVenues] = useState<Venue[]>([]);
     const [personnelMap, setPersonnelMap] = useState<Record<string, VenuePersonnel[]>>({});
+    const [completedSearches, setCompletedSearches] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const loadCampaign = useCallback(async () => {
@@ -41,6 +42,13 @@ export function useCampaignData(id: string) {
             .order("created_at", { ascending: true });
 
         if (neighborhoodData) setNeighborhoods(neighborhoodData);
+
+        const { data: searchHistoryData } = await supabase
+            .from("neighborhood_searches")
+            .select("*")
+            .eq("campaign_id", id);
+
+        if (searchHistoryData) setCompletedSearches(searchHistoryData);
 
         const { data: venueData } = await supabase
             .from("venues")
@@ -105,6 +113,7 @@ export function useCampaignData(id: string) {
         neighborhoods,
         venues,
         personnelMap,
+        completedSearches,
         loading,
         loadCampaign,
         updateRule

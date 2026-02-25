@@ -16,20 +16,30 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
 
     const [researchProgress, setResearchProgress] = useState<number | null>(null); // null means not researching all
 
-    async function searchVenuesInNeighborhood(neighborhoodId: string) {
+    async function searchVenuesInNeighborhood(neighborhoodId: string, ruleId?: string) {
         setSearchingVenues(neighborhoodId);
 
         try {
             const res = await fetch("/api/search-venues", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ campaignId, neighborhoodId }),
+                body: JSON.stringify({ campaignId, neighborhoodId, ruleId }),
             });
 
             const data = await res.json();
 
             if (!res.ok) {
                 alert("Search failed: " + (data.error || "Unknown error"));
+            } else {
+                // Determine the name of the rule searched if we can, else just "venues"
+                const typeStr = ruleId ? `for this venue type` : `overall`;
+                alert(
+                    `Search Complete!\n\n` +
+                    `Foursquare found: ${data.totalFound} venues ${typeStr}.\n` +
+                    `Filtered out (by rules/boundary): ${data.filtered}\n` +
+                    `Duplicates skipped (already in DB): ${data.duplicatesSkipped}\n` +
+                    `Brand new leads added: ${data.newVenues}`
+                );
             }
         } catch {
             alert("Failed to search venues");

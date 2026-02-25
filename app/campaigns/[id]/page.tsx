@@ -18,6 +18,7 @@ export default function CampaignDetailPage() {
         neighborhoods,
         venues,
         personnelMap,
+        completedSearches,
         loading,
         loadCampaign,
         updateRule
@@ -29,11 +30,17 @@ export default function CampaignDetailPage() {
         setAreaQuery,
         searchingArea,
         areaResults,
+        setAreaResults,
         selectedNeighborhood,
         setSelectedNeighborhood,
         handleAreaSearch,
         addNeighborhood,
-        deleteNeighborhood
+        deleteNeighborhood,
+        fetchingSubAreas,
+        stagedAreas,
+        fetchSubAreas,
+        addBulkNeighborhoods,
+        discardStagedAreas
     } = useNeighborhoods(id, loadCampaign);
 
     // Venues Hook
@@ -88,6 +95,7 @@ export default function CampaignDetailPage() {
                         setAreaQuery={setAreaQuery}
                         searchingArea={searchingArea}
                         areaResults={areaResults}
+                        setAreaResults={setAreaResults}
                         handleAreaSearch={handleAreaSearch}
                         addNeighborhood={addNeighborhood}
                         neighborhoods={neighborhoods}
@@ -96,6 +104,13 @@ export default function CampaignDetailPage() {
                         searchVenuesInNeighborhood={searchVenuesInNeighborhood}
                         searchingVenues={searchingVenues}
                         deleteNeighborhood={deleteNeighborhood}
+                        campaignRules={campaignRules}
+                        completedSearches={completedSearches}
+                        fetchingSubAreas={fetchingSubAreas}
+                        stagedAreas={stagedAreas}
+                        fetchSubAreas={fetchSubAreas}
+                        addBulkNeighborhoods={addBulkNeighborhoods}
+                        discardStagedAreas={discardStagedAreas}
                     />
                 </div>
                 {campaign.product_description && (

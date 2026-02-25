@@ -36,6 +36,17 @@ CREATE TABLE neighborhoods (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Active Tracking: Logs which rules have been totally searched within a neighborhood
+CREATE TABLE neighborhood_searches (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE,
+  neighborhood_id UUID REFERENCES neighborhoods(id) ON DELETE CASCADE,
+  rule_id UUID REFERENCES campaign_rules(id) ON DELETE CASCADE,
+  venues_found INTEGER DEFAULT 0,
+  searched_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(neighborhood_id, rule_id)
+);
+
 -- Processed venues (deduplication via fsq_id)
 CREATE TABLE venues (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -76,3 +87,4 @@ CREATE INDEX idx_rules_campaign ON campaign_rules(campaign_id);
 CREATE INDEX idx_venues_fsq_id ON venues(fsq_id);
 CREATE INDEX idx_venues_campaign ON venues(campaign_id);
 CREATE INDEX idx_personnel_venue ON venue_personnel(venue_id);
+CREATE INDEX idx_neighborhood_searches_campaign ON neighborhood_searches(campaign_id);

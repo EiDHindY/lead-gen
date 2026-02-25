@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { type Neighborhood } from "@/lib/supabase";
-import { Map, ChevronUp, ChevronDown, Search, Loader2, Trash2, X, Plus } from "lucide-react";
+import { type Neighborhood, type CampaignRule } from "@/lib/supabase";
+import { Map, ChevronUp, ChevronDown, Search, Loader2, Trash2, X, Plus, Network, CheckSquare } from "lucide-react";
+import { SubAreaResult } from "@/app/api/fetch-sub-areas/route";
 
 interface NeighborhoodPanelProps {
     areaQuery: string;
@@ -15,6 +16,7 @@ interface NeighborhoodPanelProps {
         boundingbox: string[];
         geojson: { type: string; coordinates: unknown };
     }>;
+    setAreaResults: (results: any[]) => void;
     handleAreaSearch: () => void;
     addNeighborhood: (area: {
         osmId: number;
@@ -28,9 +30,16 @@ interface NeighborhoodPanelProps {
     neighborhoods: Neighborhood[];
     selectedNeighborhood: string | null;
     setSelectedNeighborhood: (id: string | null) => void;
-    searchVenuesInNeighborhood: (id: string) => void;
+    searchVenuesInNeighborhood: (id: string, ruleId?: string) => void;
     searchingVenues: string | null;
     deleteNeighborhood: (id: string) => void;
+    campaignRules: CampaignRule[];
+    completedSearches: any[];
+    fetchingSubAreas: { id: number; loading: boolean };
+    stagedAreas: SubAreaResult[];
+    fetchSubAreas: (osmId: number, osmType: string, parentName: string) => void;
+    addBulkNeighborhoods: (areas: SubAreaResult[]) => void;
+    discardStagedAreas: () => void;
 }
 
 export function NeighborhoodPanel({
@@ -38,6 +47,7 @@ export function NeighborhoodPanel({
     setAreaQuery,
     searchingArea,
     areaResults,
+    setAreaResults,
     handleAreaSearch,
     addNeighborhood,
     neighborhoods,
@@ -45,10 +55,35 @@ export function NeighborhoodPanel({
     setSelectedNeighborhood,
     searchVenuesInNeighborhood,
     searchingVenues,
-    deleteNeighborhood
+    deleteNeighborhood,
+    campaignRules,
+    completedSearches,
+    fetchingSubAreas,
+    stagedAreas,
+    fetchSubAreas,
+    addBulkNeighborhoods,
+    discardStagedAreas
 }: NeighborhoodPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [selectedRuleId, setSelectedRuleId] = useState<string>("");
+    const [selectedStagedIds, setSelectedStagedIds] = useState<Set<number>>(new Set());
+
     const selectedNb = neighborhoods.find(n => n.id === selectedNeighborhood);
+
+    function toggleStagedSelection(id: number) {
+        const next = new Set(selectedStagedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedStagedIds(next);
+    }
+
+    function toggleAllStaged() {
+        if (selectedStagedIds.size === stagedAreas.length) {
+            setSelectedStagedIds(new Set());
+        } else {
+            setSelectedStagedIds(new Set(stagedAreas.map(a => a.osmId)));
+        }
+    }
 
     return (
         <div className="relative w-full">
@@ -99,17 +134,117 @@ export function NeighborhoodPanel({
                         {areaResults.length > 0 && (
                             <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
                                 {areaResults.map((area) => (
-                                    <button
+                                    <div
                                         key={area.osmId}
-                                        onClick={() => addNeighborhood(area)}
                                         className="w-full text-left p-3 rounded-xl bg-background hover:bg-surface-hover border border-border text-xs transition-all flex items-center justify-between group"
                                     >
                                         <span className="font-medium text-foreground truncate max-w-[200px]">
                                             {area.name}
                                         </span>
-                                        <Plus className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </button>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Quick heuristic: Only ask Overpass for relations or ways. Most Nominatim results don't expose osm_type cleanly here, so we assume 'relation' for large areas by default unless we know otherwise. 
+                                                    // In a real app we'd pass osmType from nominatim API. For now we assume relation.
+                                                    fetchSubAreas(area.osmId, 'relation', area.name);
+                                                }}
+                                                disabled={fetchingSubAreas.loading && fetchingSubAreas.id === area.osmId}
+                                                className="p-1.5 rounded-lg hover:bg-primary/20 text-muted hover:text-primary transition-colors disabled:opacity-50"
+                                                title="Fetch Suburbs (Overpass)"
+                                            >
+                                                {fetchingSubAreas.loading && fetchingSubAreas.id === area.osmId ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                                                ) : (
+                                                    <Network className="w-3.5 h-3.5" />
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => addNeighborhood(area)}
+                                                className="w-full text-left p-1.5 rounded-lg hover:bg-primary/20 transition-all flex items-center justify-between group"
+                                                title="Add this area directly"
+                                            >
+                                                <Plus className="w-3.5 h-3.5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 ))}
+                            </div>
+                        )}
+
+                        {/* Staging Table */}
+                        {stagedAreas.length > 0 && (
+                            <div className="mt-4 p-3 bg-surface border border-border rounded-xl">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h4 className="text-xs font-bold flex items-center gap-2 text-foreground">
+                                        <Network className="w-3.5 h-3.5 text-primary" />
+                                        Suburbs Staging ({stagedAreas.length})
+                                    </h4>
+                                    <button
+                                        onClick={() => {
+                                            discardStagedAreas();
+                                            setSelectedStagedIds(new Set());
+                                        }}
+                                        className="text-[10px] text-danger/80 hover:text-danger hover:underline"
+                                    >
+                                        Discard
+                                    </button>
+                                </div>
+                                <div className="max-h-48 overflow-y-auto border border-border rounded-lg bg-background">
+                                    <table className="w-full text-[10px] text-left">
+                                        <thead className="bg-surface sticky top-0 z-10">
+                                            <tr>
+                                                <th className="p-2 border-b border-border w-8 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedStagedIds.size === stagedAreas.length && stagedAreas.length > 0}
+                                                        onChange={toggleAllStaged}
+                                                        className="accent-primary"
+                                                    />
+                                                </th>
+                                                <th className="p-2 border-b border-border font-semibold">Name</th>
+                                                <th className="p-2 border-b border-border font-semibold text-right">Size</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {stagedAreas.map((area, idx) => (
+                                                <tr key={area.osmId} className="border-b border-border hover:bg-surface-hover/50">
+                                                    <td className="p-2 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedStagedIds.has(area.osmId)}
+                                                            onChange={() => toggleStagedSelection(area.osmId)}
+                                                            className="accent-primary"
+                                                        />
+                                                    </td>
+                                                    <td className="p-2 truncate max-w-[120px]" title={area.displayName}>
+                                                        {area.name}
+                                                    </td>
+                                                    <td className="p-2 text-right text-muted whitespace-nowrap">
+                                                        {area.approxSizeSqKm} km²
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="mt-2 flex justify-end">
+                                    <button
+                                        onClick={() => {
+                                            const selected = stagedAreas.filter(a => selectedStagedIds.has(a.osmId));
+                                            addBulkNeighborhoods(selected);
+                                            discardStagedAreas();
+                                            setSelectedStagedIds(new Set());
+                                            setAreaResults([]);
+                                            setAreaQuery("");
+                                        }}
+                                        disabled={selectedStagedIds.size === 0}
+                                        className="btn-primary-premium py-1 px-3 text-[10px] flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                        Add {selectedStagedIds.size} Selected
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -157,21 +292,45 @@ export function NeighborhoodPanel({
                                 </div>
                                 <div className="flex gap-2 ml-3">
                                     {nb.status !== "completed" && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                searchVenuesInNeighborhood(nb.id);
-                                            }}
-                                            disabled={searchingVenues === nb.id}
-                                            className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"
-                                            title="Search venues"
-                                        >
-                                            {searchingVenues === nb.id ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            ) : (
-                                                <Search className="w-3.5 h-3.5" />
+                                        <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                                            {campaignRules.length > 0 && (
+                                                <select
+                                                    value={selectedRuleId}
+                                                    onChange={(e) => setSelectedRuleId(e.target.value)}
+                                                    className="px-2 py-1 text-xs rounded border border-border bg-background text-foreground"
+                                                >
+                                                    <option value="" disabled>Select Type...</option>
+                                                    {campaignRules.map(rule => {
+                                                        const isCompleted = completedSearches.some(s => s.neighborhood_id === nb.id && s.rule_id === rule.id);
+                                                        return (
+                                                            <option key={rule.id} value={rule.id}>
+                                                                {isCompleted ? "✓ " : ""}{rule.venue_type}
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </select>
                                             )}
-                                        </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const ruleToSearch = selectedRuleId || (campaignRules.length > 0 ? campaignRules[0].id : undefined);
+                                                    if (!ruleToSearch && campaignRules.length > 0) {
+                                                        alert("Please select a venue type to search");
+                                                        return;
+                                                    }
+                                                    searchVenuesInNeighborhood(nb.id, ruleToSearch);
+                                                }}
+                                                disabled={searchingVenues === nb.id || campaignRules.length === 0}
+                                                className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"
+                                                title={campaignRules.length === 0 ? "Add rules first" : "Search specific venue type"}
+                                            >
+                                                {searchingVenues === nb.id ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                    <Search className="w-3.5 h-3.5" />
+                                                )}
+                                            </button>
+                                        </div>
                                     )}
                                     <button
                                         onClick={(e) => {
