@@ -39,7 +39,12 @@ const VENUE_GROUPS: Array<{ label: string; emoji: string; types: string[] }> = [
     {
         label: "Bars & Nightlife",
         emoji: "🍺",
-        types: ["bar", "pub", "wine_bar", "brewery", "nightclub", "lounge", "cocktail_bar"],
+        types: ["bar", "pub", "wine_bar", "brewery", "nightclub", "lounge", "cocktail_bar", "hookah_lounge"],
+    },
+    {
+        label: "Entertainment & Activities",
+        emoji: "🎯",
+        types: ["arcade", "mini_golf", "bowling_alley", "snooker_hall", "pool_hall", "event_venue"],
     },
     {
         label: "Hospitality & Leisure",
