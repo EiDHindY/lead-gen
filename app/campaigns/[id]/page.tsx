@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { useParams } from "next/navigation";
 import {
     supabase,
@@ -389,8 +389,8 @@ export default function CampaignDetailPage() {
                                         selectedNeighborhood === nb.id ? null : nb.id
                                     )}
                                     className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${selectedNeighborhood === nb.id
-                                            ? "bg-primary/20 border-primary"
-                                            : "bg-surface border-border hover:border-primary/50"
+                                        ? "bg-primary/20 border-primary"
+                                        : "bg-surface border-border hover:border-primary/50"
                                         }`}
                                 >
                                     <div className="flex-1 min-w-0">
@@ -562,9 +562,8 @@ export default function CampaignDetailPage() {
                                                 const isExpanded = expandedVenue === venue.id;
 
                                                 return (
-                                                    <>
+                                                    <Fragment key={venue.id}>
                                                         <tr
-                                                            key={venue.id}
                                                             className="cursor-pointer"
                                                             onClick={() =>
                                                                 setExpandedVenue(
@@ -787,7 +786,7 @@ export default function CampaignDetailPage() {
                                                                 </td>
                                                             </tr>
                                                         )}
-                                                    </>
+                                                    </Fragment>
                                                 );
                                             })}
                                     </tbody>
