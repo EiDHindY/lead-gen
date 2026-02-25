@@ -1,65 +1,168 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase, type Campaign, type CampaignRule } from "@/lib/supabase";
+
+interface CampaignStats extends Campaign {
+  rules: CampaignRule[];
+  total_venues: number;
+  total_neighborhoods: number;
+  completed_neighborhoods: number;
+}
+
+export default function Dashboard() {
+  const [campaigns, setCampaigns] = useState<CampaignStats[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadCampaigns();
+  }, []);
+
+  async function loadCampaigns() {
+    setLoading(true);
+
+    const { data: campaignData } = await supabase
+      .from("campaigns")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!campaignData) {
+      setLoading(false);
+      return;
+    }
+
+    const stats: CampaignStats[] = [];
+
+    for (const c of campaignData) {
+      const { data: rules } = await supabase
+        .from("campaign_rules")
+        .select("*")
+        .eq("campaign_id", c.id);
+
+      const { count: venueCount } = await supabase
+        .from("venues")
+        .select("*", { count: "exact", head: true })
+        .eq("campaign_id", c.id);
+
+      const { data: neighborhoods } = await supabase
+        .from("neighborhoods")
+        .select("status")
+        .eq("campaign_id", c.id);
+
+      stats.push({
+        ...c,
+        rules: (rules as CampaignRule[]) || [],
+        total_venues: venueCount || 0,
+        total_neighborhoods: neighborhoods?.length || 0,
+        completed_neighborhoods:
+          neighborhoods?.filter((n) => n.status === "completed").length || 0,
+      });
+    }
+
+    setCampaigns(stats);
+    setLoading(false);
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
+        <p className="text-muted">Your lead generation overview</p>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="glass-card p-6">
+          <div className="text-muted text-sm mb-1">Total Campaigns</div>
+          <div className="text-3xl font-bold text-foreground">
+            {loading ? "..." : campaigns.length}
+          </div>
+        </div>
+        <div className="glass-card p-6">
+          <div className="text-muted text-sm mb-1">Total Leads</div>
+          <div className="text-3xl font-bold text-primary">
+            {loading ? "..." : campaigns.reduce((sum, c) => sum + c.total_venues, 0)}
+          </div>
+        </div>
+        <div className="glass-card p-6">
+          <div className="text-muted text-sm mb-1">Areas Covered</div>
+          <div className="text-3xl font-bold text-secondary">
+            {loading ? "..." : campaigns.reduce((sum, c) => sum + c.completed_neighborhoods, 0)}
+          </div>
+        </div>
+      </div>
+
+      {/* Campaign Cards */}
+      {loading ? (
+        <div className="text-center text-muted py-16">Loading campaigns...</div>
+      ) : campaigns.length === 0 ? (
+        <div className="glass-card p-12 text-center">
+          <div className="text-5xl mb-4">🎯</div>
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            No Campaigns Yet
+          </h2>
+          <p className="text-muted mb-6">
+            Create your first campaign to start finding leads
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/campaigns/new"
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium transition-colors"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            + Create Campaign
+          </Link>
         </div>
-      </main>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {campaigns.map((campaign) => (
+            <Link key={campaign.id} href={`/campaigns/${campaign.id}`}>
+              <div className="glass-card p-6 hover:border-primary/50 transition-all cursor-pointer">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      {campaign.name}
+                    </h3>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {campaign.rules.map((rule) => (
+                        <span key={rule.id} className="badge badge-new">
+                          {rule.venue_type.replace(/_/g, " ")}
+                          {rule.min_rating > 0 && ` ⭐${rule.min_rating}+`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-primary">
+                      {campaign.total_venues}
+                    </div>
+                    <div className="text-xs text-muted">leads</div>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="flex justify-between text-xs text-muted mb-1">
+                    <span>
+                      {campaign.completed_neighborhoods} / {campaign.total_neighborhoods} areas
+                    </span>
+                    <span>{campaign.rules.length} rules</span>
+                  </div>
+                  <div className="w-full bg-border rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-primary to-secondary rounded-full h-2 transition-all"
+                      style={{
+                        width: `${campaign.total_neighborhoods > 0
+                            ? (campaign.completed_neighborhoods / campaign.total_neighborhoods) * 100
+                            : 0
+                          }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
