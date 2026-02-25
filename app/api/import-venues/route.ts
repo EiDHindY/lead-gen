@@ -73,7 +73,11 @@ export async function POST(req: NextRequest) {
                     .select("id")
                     .single();
 
-                if (!nbError && newNb) {
+                if (nbError) {
+                    console.error("Neighborhood creation error:", nbError);
+                    return NextResponse.json({ error: "Failed to create neighborhood: " + nbError.message }, { status: 500 });
+                }
+                if (newNb) {
                     finalNeighborhoodId = newNb.id;
                 }
             }

@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme inline {
+@theme {
   --color-background: #0a0a0f;
   --color-foreground: #e4e4e7;
   --color-primary: #6366f1;
@@ -19,6 +19,11 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
+
+html {
+  font-size: 130%;
+}
+
 
 body {
   background: var(--color-background);
@@ -151,12 +156,78 @@ body {
   background: var(--color-muted);
 }
 
+/* ── Premium Buttons Base ── */
+.btn-premium,
+.btn-primary-premium,
+.btn-secondary-premium,
+.btn-ghost-premium {
+  @apply relative overflow-hidden px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 active:scale-95 flex items-center gap-2;
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.btn-premium:hover,
+.btn-primary-premium:hover,
+.btn-secondary-premium:hover,
+.btn-ghost-premium:hover {
+  background: var(--color-surface-hover);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-primary-premium {
+  @apply text-white;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dim));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.btn-primary-premium:hover {
+  background: linear-gradient(135deg, var(--color-primary-hover), var(--color-primary));
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+}
+
+.btn-secondary-premium {
+  @apply text-white;
+  background: linear-gradient(135deg, var(--color-secondary), #7e22ce);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+}
+
+.btn-secondary-premium:hover {
+  background: linear-gradient(135deg, #c084fc, var(--color-secondary));
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.4);
+}
+
+.btn-ghost-premium {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+.btn-ghost-premium:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
 /* ── Clickable elements always show pointer ── */
 button,
 a,
+input[type="button"],
+input[type="submit"],
+input[type="file"],
 [role="button"],
-label[class*="cursor"],
-.glass-card[class*="cursor"],
+.cursor-pointer,
+label,
 summary {
-  cursor: pointer;
+  cursor: pointer !important;
+}
+
+/* Ensure disabled buttons don't show pointer */
+button:disabled,
+input:disabled {
+  cursor: not-allowed !important;
 }
