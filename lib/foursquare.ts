@@ -188,10 +188,13 @@ export async function getVenueDetails(fsqId: string): Promise<FsqVenue> {
 /**
  * Map user-friendly venue type names to Foursquare category IDs
  */
-export function mapVenueTypes(types: string[]): number[] {
+export function mapVenueTypes(types: (string | any)[]): number[] {
     const ids: number[] = [];
     for (const t of types) {
-        const normalized = t.toLowerCase().replace(/[\s-]/g, "_");
+        // Defensive: handle cases where venue_type is an object instead of a string
+        const raw = typeof t === "string" ? t : (t?.name || t?.venue_type || String(t || ""));
+        if (!raw) continue;
+        const normalized = raw.toLowerCase().replace(/[\s-]/g, "_");
         const mappedIds = VENUE_CATEGORIES[normalized];
         if (mappedIds) {
             for (const id of mappedIds) {

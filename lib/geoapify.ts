@@ -71,10 +71,13 @@ export const VENUE_CATEGORIES: Record<string, string> = {
 /**
  * Map user-friendly venue type names to Geoapify category strings
  */
-export function mapVenueTypes(types: string[]): string {
+export function mapVenueTypes(types: (string | any)[]): string {
     const cats: string[] = [];
     for (const t of types) {
-        const normalized = t.toLowerCase().replace(/[\s-]/g, "_");
+        // Defensive: handle cases where venue_type is an object instead of a string
+        const raw = typeof t === "string" ? t : (t?.name || t?.venue_type || String(t || ""));
+        if (!raw) continue;
+        const normalized = raw.toLowerCase().replace(/[\s-]/g, "_");
         const mapped = VENUE_CATEGORIES[normalized];
         if (mapped) {
             cats.push(mapped);
