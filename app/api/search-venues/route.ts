@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
         if (typeof neighborhoodId !== 'undefined') {
             await supabase
                 .from("neighborhoods")
-                .update({ status: "new" })
+                .update({ status: "pending" })
                 .eq("id", neighborhoodId);
         }
 

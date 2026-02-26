@@ -69,7 +69,7 @@ export function NeighborhoodPanel({
     const [isOpen, setIsOpen] = useState(false);
     const [selectedRules, setSelectedRules] = useState<Record<string, string>>({});
     const [selectedStagedIds, setSelectedStagedIds] = useState<Set<number>>(new Set());
-    const [statusFilter, setStatusFilter] = useState<"all" | "new" | "searching" | "completed">("all");
+    const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "searching" | "completed">("all");
 
     const selectedNb = neighborhoods.find(n => n.id === selectedNeighborhood);
 
@@ -271,7 +271,7 @@ export function NeighborhoodPanel({
                                 <div className="flex gap-1 mb-3 bg-background/50 p-1 rounded-lg border border-border">
                                     {[
                                         { id: "all", label: "All" },
-                                        { id: "new", label: "Pending" },
+                                        { id: "pending", label: "Pending" },
                                         { id: "searching", label: "Searching" },
                                         { id: "completed", label: "Completed" }
                                     ].map((f) => (
@@ -279,8 +279,8 @@ export function NeighborhoodPanel({
                                             key={f.id}
                                             onClick={() => setStatusFilter(f.id as any)}
                                             className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition-all ${statusFilter === f.id
-                                                    ? "bg-primary text-primary-foreground shadow-sm"
-                                                    : "text-muted hover:text-foreground hover:bg-surface-hover"
+                                                ? "bg-primary text-primary-foreground shadow-sm"
+                                                : "text-muted hover:text-foreground hover:bg-surface-hover"
                                                 }`}
                                         >
                                             {f.label}
