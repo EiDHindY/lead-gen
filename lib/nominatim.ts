@@ -11,11 +11,12 @@ export interface NominatimResult {
     display_name: string;
     name: string;
     type: string;
+    category?: string;
     geojson?: {
         type: string;
         coordinates: unknown;
     };
-    boundingbox: [string, string, string, string]; // [south, north, west, east]
+    boundingbox: (string | number)[]; // [south, north, west, east]
 }
 
 /**
@@ -59,7 +60,7 @@ export async function searchArea(
  * Get the center point of a bounding box
  */
 export function getBoundingBoxCenter(
-    boundingbox: [string, string, string, string]
+    boundingbox: (string | number)[]
 ): { lat: number; lng: number } {
     const [south, north, west, east] = boundingbox.map(Number);
     return {
@@ -72,7 +73,7 @@ export function getBoundingBoxCenter(
  * Calculate approximate radius (in meters) that covers a bounding box
  */
 export function getBoundingBoxRadius(
-    boundingbox: [string, string, string, string]
+    boundingbox: (string | number)[]
 ): number {
     const [south, north, west, east] = boundingbox.map(Number);
 

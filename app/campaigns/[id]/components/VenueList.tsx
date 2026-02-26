@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { type Venue, type VenuePersonnel } from "@/lib/supabase";
+import { type Venue, type VenuePersonnel, type Campaign } from "@/lib/supabase";
 import {
     ClipboardList,
     ChevronDown,
@@ -13,7 +13,7 @@ import {
     Upload,
     Search,
     User,
-    Star,
+
     Phone,
     SkipForward,
     MapPin,
@@ -23,7 +23,10 @@ import {
     Mail,
     Lightbulb,
     Hash,
-    Loader2
+    Loader2,
+    Database,
+    Settings,
+    Trash2
 } from "lucide-react";
 
 interface VenueListProps {
@@ -50,6 +53,12 @@ interface VenueListProps {
     researchPersonnel: (id: string) => void;
     researchingVenue: string | null;
     updateVenueStatus: (id: string, status: "called" | "skipped") => void;
+    deleteVenue: (id: string) => void;
+    campaign: Campaign;
+    onOpenNotionSettings: () => void;
+    exportToNotion: (token: string, dbId: string, venueIds: string[]) => void;
+    notionExporting: boolean;
+    notionExportProgress: { current: number; total: number } | null;
 }
 
 export function VenueList({
@@ -75,7 +84,13 @@ export function VenueList({
     researchPersonnel,
     researchingVenue,
     updateVenueStatus,
-    handleFileUploads
+    deleteVenue,
+    handleFileUploads,
+    campaign,
+    onOpenNotionSettings,
+    exportToNotion,
+    notionExporting,
+    notionExportProgress
 }: VenueListProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [visibleCount, setVisibleCount] = useState(50);
@@ -135,13 +150,54 @@ export function VenueList({
                             </button>
                         )}
                         {venues.length > 0 && (
-                            <button
-                                onClick={exportCSV}
-                                className="btn-primary-premium shadow-lg"
-                            >
-                                <Download className="w-4 h-4" />
-                                <span className="hidden sm:inline">Export CSV</span>
-                            </button>
+                            <>
+                                <button
+                                    onClick={exportCSV}
+                                    className="btn-primary-premium shadow-lg"
+                                    title="Export to CSV"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    <span className="hidden sm:inline">CSV</span>
+                                </button>
+
+                                <div className="flex bg-surface border border-border rounded-lg overflow-hidden shadow-lg">
+                                    <button
+                                        onClick={() => {
+                                            if (campaign.notion_token && campaign.notion_database_id) {
+                                                const activeVenues = filteredVenues.filter(v => v.status !== 'skipped');
+                                                const venueIdsToExport = activeVenues.map(v => v.id);
+
+                                                if (venueIdsToExport.length === 0) {
+                                                    alert("No active venues to export (all filtered venues are 'skipped').");
+                                                    return;
+                                                }
+
+                                                const anyExported = activeVenues.some(v => v.notion_exported);
+                                                if (anyExported && !window.confirm("Some venues in this list have already been pushed to Notion. Push them again?")) {
+                                                    return;
+                                                }
+                                                exportToNotion(campaign.notion_token, campaign.notion_database_id, venueIdsToExport);
+                                            } else {
+                                                onOpenNotionSettings();
+                                            }
+                                        }}
+                                        disabled={notionExporting}
+                                        className="px-4 py-2 text-sm font-medium hover:bg-surface-hover flex items-center gap-2 border-r border-border text-foreground transition-colors"
+                                    >
+                                        {notionExporting ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Database className="w-4 h-4 text-foreground" />}
+                                        <span className="hidden sm:inline">
+                                            {notionExporting ? `Notion (${notionExportProgress?.current}/${notionExportProgress?.total})` : "Notion"}
+                                        </span>
+                                    </button>
+                                    <button
+                                        onClick={onOpenNotionSettings}
+                                        className="px-2 py-2 hover:bg-surface-hover flex items-center justify-center transition-colors bg-surface"
+                                        title="Notion Integration Settings"
+                                    >
+                                        <Settings className="w-4 h-4 text-muted hover:text-foreground" />
+                                    </button>
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>
@@ -267,7 +323,7 @@ export function VenueList({
                                                     <Hash className="w-3 h-3 mx-auto" />
                                                 </th>
                                                 <th>Venue</th>
-                                                <th>Rating</th>
+
                                                 <th>Phone</th>
                                                 <th>Personnel</th>
                                                 <th>Status</th>
@@ -300,16 +356,7 @@ export function VenueList({
                                                                     {venue.address}
                                                                 </div>
                                                             </td>
-                                                            <td>
-                                                                {venue.rating ? (
-                                                                    <div className="flex items-center gap-1 text-warning font-bold">
-                                                                        <Star className="w-3.5 h-3.5 fill-warning" />
-                                                                        {venue.rating}
-                                                                    </div>
-                                                                ) : (
-                                                                    <span className="text-muted">—</span>
-                                                                )}
-                                                            </td>
+
                                                             <td>
                                                                 {venue.phone ? (
                                                                     <a
@@ -398,6 +445,41 @@ export function VenueList({
                                                                             <MapPin className="w-3.5 h-3.5" />
                                                                         </a>
                                                                     )}
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            if (venue.notion_exported) {
+                                                                                if (!window.confirm("This venue has already been pushed to Notion. Push it again?")) return;
+                                                                            }
+                                                                            if (campaign.notion_token && campaign.notion_database_id) {
+                                                                                exportToNotion(campaign.notion_token, campaign.notion_database_id, [venue.id]);
+                                                                            } else {
+                                                                                onOpenNotionSettings();
+                                                                            }
+                                                                        }}
+                                                                        disabled={notionExporting}
+                                                                        className={`p-1.5 rounded-lg transition-all border ${venue.notion_exported
+                                                                            ? "bg-secondary/20 text-secondary border-secondary/30 hover:bg-secondary/30"
+                                                                            : "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border"
+                                                                            }`}
+                                                                        title={venue.notion_exported ? "Push to Notion again" : "Export to Notion"}
+                                                                    >
+                                                                        {notionExporting && notionExportProgress?.total === 1 ? (
+                                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                        ) : (
+                                                                            <Database className="w-3.5 h-3.5" />
+                                                                        )}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            deleteVenue(venue.id);
+                                                                        }}
+                                                                        className="p-1.5 rounded-lg bg-danger/10 text-danger hover:bg-danger/20 transition-all border border-danger/20"
+                                                                        title="Delete venue permanently"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -405,7 +487,7 @@ export function VenueList({
                                                         {/* Expanded details */}
                                                         {isExpanded && (
                                                             <tr key={`${venue.id}-details`}>
-                                                                <td colSpan={7} className="!p-0">
+                                                                <td colSpan={6} className="!p-0">
                                                                     <div className="bg-surface/50 p-6 border-t border-border">
                                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                                             {/* Venue Info */}

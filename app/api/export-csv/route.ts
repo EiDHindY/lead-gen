@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
             query = query.eq("neighborhood_id", neighborhoodId);
         }
 
+        // Exclude skipped venues from export
+        query = query.neq("status", "skipped");
+
         const { data: venues, error: venueErr } = await query;
 
         if (venueErr || !venues) {

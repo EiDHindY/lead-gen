@@ -11,6 +11,8 @@ export interface Campaign {
   id: string;
   name: string;
   product_description: string | null;
+  notion_token: string | null;
+  notion_database_id: string | null;
   created_at: string;
 }
 
@@ -55,6 +57,7 @@ export interface Venue {
   website: string | null;
   google_maps_url: string | null;
   types: string[] | null;
+  notion_exported: boolean | null;
   ai_research_raw: string | null;
   status: "new" | "researched" | "called" | "skipped";
   created_at: string;

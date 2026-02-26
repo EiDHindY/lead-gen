@@ -1,5 +1,5 @@
 "use client";
-
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useCampaignData } from "./hooks/useCampaignData";
 import { useNeighborhoods } from "./hooks/useNeighborhoods";
@@ -7,9 +7,11 @@ import { useVenues } from "./hooks/useVenues";
 import { NeighborhoodPanel } from "./components/NeighborhoodPanel";
 import { VenueList } from "./components/VenueList";
 import { CampaignRulesDropdown } from "./components/CampaignRulesDropdown";
+import { NotionSettingsDialog } from "./components/NotionSettingsDialog";
 
 export default function CampaignDetailPage() {
     const { id } = useParams<{ id: string }>();
+    const [showNotionSettings, setShowNotionSettings] = useState(false);
 
     // Data Loading Hook
     const {
@@ -40,6 +42,7 @@ export default function CampaignDetailPage() {
         stagedAreas,
         fetchSubAreas,
         addBulkNeighborhoods,
+        addingBulk,
         discardStagedAreas
     } = useNeighborhoods(id, loadCampaign);
 
@@ -64,9 +67,13 @@ export default function CampaignDetailPage() {
         researchAll,
         markAllCalled,
         updateVenueStatus,
+        deleteVenue,
         exportCSV,
         importVenues,
-        handleFileUploads
+        handleFileUploads,
+        exportToNotion,
+        notionExporting,
+        notionExportProgress
     } = useVenues(id, venues, loadCampaign);
 
     if (loading) {
@@ -88,7 +95,7 @@ export default function CampaignDetailPage() {
                 <h1 className="text-3xl font-bold text-foreground mb-2">
                     {campaign.name}
                 </h1>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 max-w-2xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 max-w-4xl">
                     <CampaignRulesDropdown rules={campaignRules} updateRule={updateRule} />
                     <NeighborhoodPanel
                         areaQuery={areaQuery}
@@ -110,6 +117,7 @@ export default function CampaignDetailPage() {
                         stagedAreas={stagedAreas}
                         fetchSubAreas={fetchSubAreas}
                         addBulkNeighborhoods={addBulkNeighborhoods}
+                        addingBulk={addingBulk}
                         discardStagedAreas={discardStagedAreas}
                     />
                 </div>
@@ -146,8 +154,27 @@ export default function CampaignDetailPage() {
                     researchingVenue={researchingVenue}
                     updateVenueStatus={updateVenueStatus}
                     handleFileUploads={handleFileUploads}
+                    campaign={campaign}
+                    onOpenNotionSettings={() => setShowNotionSettings(true)}
+                    exportToNotion={exportToNotion}
+                    notionExporting={notionExporting}
+                    notionExportProgress={notionExportProgress}
+                    deleteVenue={deleteVenue}
                 />
             </div>
+
+            {showNotionSettings && (
+                <NotionSettingsDialog
+                    campaignId={campaign.id}
+                    initialToken={campaign.notion_token}
+                    initialDatabaseId={campaign.notion_database_id}
+                    onClose={() => setShowNotionSettings(false)}
+                    onSaved={() => {
+                        setShowNotionSettings(false);
+                        loadCampaign();
+                    }}
+                />
+            )}
         </div>
     );
 }

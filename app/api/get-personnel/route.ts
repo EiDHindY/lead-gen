@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { researchVenuePersonnel } from "@/lib/gemini";
+import { researchVenuePersonnel, researchVenuePhone } from "@/lib/gemini";
 
 export async function POST(req: NextRequest) {
     try {
@@ -31,7 +31,46 @@ export async function POST(req: NextRequest) {
         const productDescription =
             campaign?.product_description || "our product/service";
 
-        // 3. Call Gemini to research personnel
+        // 3. PRIORITIZE PHONE NUMBER SEARCH
+        let venuePhone = venue.phone;
+        if (!venuePhone) {
+            console.log(`[get-personnel] No phone in DB for "${venue.name}", researching...`);
+            venuePhone = await researchVenuePhone(
+                venue.name,
+                venue.address || "",
+                venue.types || []
+            );
+
+            if (venuePhone) {
+                console.log(`[get-personnel] Found phone: ${venuePhone}`);
+                // Save it immediately so we don't lose it
+                await supabase
+                    .from("venues")
+                    .update({ phone: venuePhone })
+                    .eq("id", venueId);
+            }
+        }
+
+        // 4. ABORT if no phone found (user's request: save quota)
+        if (!venuePhone) {
+            console.log(`[get-personnel] Aborting research: No phone found for "${venue.name}"`);
+            await supabase
+                .from("venues")
+                .update({
+                    status: "skipped",
+                    ai_research_raw: "Research aborted: No verifiable phone number found for this venue."
+                })
+                .eq("id", venueId);
+
+            return NextResponse.json({
+                venue: venue.name,
+                aborted: true,
+                reason: "no_phone",
+                message: "No phone number found. Research aborted to save quota."
+            });
+        }
+
+        // 5. Call Gemini to research personnel
         const result = await researchVenuePersonnel(
             venue.name,
             venue.address || "",
@@ -60,7 +99,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 5. Update venue status and store raw AI response
+        // 6. Update venue status and store raw AI response
         await supabase
             .from("venues")
             .update({
@@ -74,10 +113,10 @@ export async function POST(req: NextRequest) {
             personnelFound: insertedPersonnel.length,
             personnel: insertedPersonnel,
         });
-    } catch (err) {
+    } catch (err: any) {
         console.error("[get-personnel]", err);
         return NextResponse.json(
-            { error: "Failed to research personnel" },
+            { error: "Failed to research personnel", details: err.message },
             { status: 500 }
         );
     }

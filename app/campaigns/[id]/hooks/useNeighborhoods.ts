@@ -62,32 +62,52 @@ export function useNeighborhoods(campaignId: string, loadCampaign: () => Promise
         loadCampaign();
     }
 
+    const [addingBulk, setAddingBulk] = useState(false);
+
     async function addBulkNeighborhoods(areas: SubAreaResult[]) {
         if (areas.length === 0) return;
+        setAddingBulk(true);
 
-        const inserts = areas.map(area => ({
-            campaign_id: campaignId,
-            name: area.name,
-            display_name: area.displayName,
-            boundary_polygon: {
-                lat: area.lat,
-                lng: area.lon,
-                // Overpass centers don't have bounding boxes or geojson immediately.
-                // We'd ideally need a Nominatim lookup for the strict polygon,
-                // but for now we store the point + radius fallback behavior.
-                boundingbox: null,
-                geojson: null,
-            },
-        }));
+        try {
+            // First: Fetch precise geojson boundaries for all selected suburbs via Nominatim
+            // This takes ~1s per suburb to respect API rate limits
+            const res = await fetch("/api/fetch-bulk-boundaries", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ areas })
+            });
 
-        const { error } = await supabase.from("neighborhoods").insert(inserts);
+            const data = await res.json();
 
-        if (error) {
-            alert("Failed to add neighborhoods in bulk: " + error.message);
-            return;
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to fetch precise suburb boundaries");
+            }
+
+            const inserts = data.enrichedAreas.map((area: any) => ({
+                campaign_id: campaignId,
+                name: area.name,
+                display_name: area.displayName,
+                boundary_polygon: {
+                    lat: area.lat,
+                    lng: area.lon, // or area.lng depending on the mapping
+                    boundingbox: area.boundingbox || null,
+                    geojson: area.geojson || null,
+                },
+            }));
+
+            const { error } = await supabase.from("neighborhoods").insert(inserts);
+
+            if (error) {
+                alert("Failed to add neighborhoods in bulk: " + error.message);
+                return;
+            }
+
+            loadCampaign();
+        } catch (e: any) {
+            alert(e.message);
+        } finally {
+            setAddingBulk(false);
         }
-
-        loadCampaign();
     }
 
     async function fetchSubAreas(osmId: number, osmType: string, parentName: string) {
@@ -147,6 +167,7 @@ export function useNeighborhoods(campaignId: string, loadCampaign: () => Promise
         stagedAreas,
         fetchSubAreas,
         addBulkNeighborhoods,
+        addingBulk,
         discardStagedAreas
     };
 }

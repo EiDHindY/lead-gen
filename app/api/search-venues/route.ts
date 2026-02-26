@@ -5,9 +5,11 @@ import {
     mapVenueTypes,
     countOpeningDays,
     generateMapsUrl,
-    type FsqVenue,
-} from "@/lib/foursquare";
-import { isWithinBoundary } from "@/lib/geo";
+    getPhone,
+    getWebsite,
+    getOpeningHours,
+    type GeoapifyVenue,
+} from "@/lib/geoapify";
 import { getBoundingBoxCenter, getBoundingBoxRadius } from "@/lib/nominatim";
 
 // Common chain keywords for exclude_chains filter
@@ -69,15 +71,27 @@ export async function POST(req: NextRequest) {
         // 3. Get center and radius
         let centerLat: number, centerLng: number, radius: number;
 
-        if (neighborhood.boundary_polygon?.boundingbox) {
-            const bb = neighborhood.boundary_polygon.boundingbox as [string, string, string, string];
+        if (!neighborhood.boundary_polygon) {
+            return NextResponse.json(
+                { error: "Neighborhood has no valid boundary data" },
+                { status: 400 }
+            );
+        }
+
+        if (neighborhood.boundary_polygon.boundingbox) {
+            const bb = neighborhood.boundary_polygon.boundingbox as (string | number)[];
             const center = getBoundingBoxCenter(bb);
             centerLat = center.lat;
             centerLng = center.lng;
             radius = Math.min(getBoundingBoxRadius(bb), 50000);
-        } else if (neighborhood.boundary_polygon?.lat && neighborhood.boundary_polygon?.lng) {
-            centerLat = neighborhood.boundary_polygon.lat as number;
-            centerLng = neighborhood.boundary_polygon.lng as number;
+        } else if (
+            neighborhood.boundary_polygon.lat !== undefined &&
+            neighborhood.boundary_polygon.lng !== undefined &&
+            neighborhood.boundary_polygon.lat !== null &&
+            neighborhood.boundary_polygon.lng !== null
+        ) {
+            centerLat = Number(neighborhood.boundary_polygon.lat);
+            centerLng = Number(neighborhood.boundary_polygon.lng);
             radius = 5000;
         } else {
             return NextResponse.json(
@@ -86,14 +100,16 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 4. Search Foursquare for EACH rule's venue type separately
-        const allNewVenues = [];
+        console.log(`[search-venues] Center: ${centerLat}, ${centerLng}. Radius: ${radius}`);
+
+        // 4. Search Geoapify for EACH rule's venue type separately
+        const allNewVenues: any[] = [];
         let totalFound = 0;
         let totalFiltered = 0;
         let totalDupsSkipped = 0;
 
-        // Get existing fsq_ids for dedup
-        const existingFsqIds = new Set<string>();
+        // Get existing place_ids for dedup
+        const existingIds = new Set<string>();
         const { data: existingVenues } = await supabase
             .from("venues")
             .select("fsq_id")
@@ -101,49 +117,46 @@ export async function POST(req: NextRequest) {
 
         if (existingVenues) {
             for (const v of existingVenues) {
-                existingFsqIds.add(v.fsq_id);
+                existingIds.add(v.fsq_id);
             }
         }
 
         for (const rule of rules as CampaignRule[]) {
-            // Map this rule's venue type to Foursquare category IDs
-            const categoryIds = mapVenueTypes([rule.venue_type]);
-            if (categoryIds.length === 0) continue;
+            // Map venue type to Geoapify categories
+            const categories = mapVenueTypes([rule.venue_type]);
 
-            // Search with pagination
-            const typeVenues: FsqVenue[] = [];
-            let cursor: string | undefined;
+            console.log(`[search-venues] Processing rule: ${rule.venue_type} → categories: ${categories}`);
+
+            // Search with pagination (Geoapify uses offset)
+            const typeVenues: GeoapifyVenue[] = [];
+            let offset = 0;
+            const pageSize = 50;
 
             do {
                 const result = await searchVenues(
                     centerLat,
                     centerLng,
                     radius,
-                    categoryIds,
-                    50,
-                    cursor
+                    categories,
+                    pageSize,
+                    offset
                 );
+
+                if (result.venues.length > 0 && typeVenues.length === 0) {
+                    console.log(`[search-venues] Sample venue:`, JSON.stringify(result.venues[0], null, 2));
+                }
+
                 typeVenues.push(...result.venues);
-                cursor = result.nextCursor;
-            } while (cursor && typeVenues.length < 300);
+                offset += pageSize;
+
+                if (!result.hasMore) break;
+            } while (typeVenues.length < 300);
 
             totalFound += typeVenues.length;
+            console.log(`[search-venues] Rule ${rule.venue_type}: Found ${typeVenues.length} venues.`);
 
-            // Apply this rule's specific filters
+            // Apply filters
             const filtered = typeVenues.filter((v) => {
-                // Rating filter
-                if (rule.min_rating > 0 && v.rating && v.rating < rule.min_rating) {
-                    return false;
-                }
-
-                // Opening days filter
-                if (rule.min_opening_days > 0) {
-                    const days = countOpeningDays(v.hours);
-                    if (days !== null && days < rule.min_opening_days) {
-                        return false;
-                    }
-                }
-
                 // Chain exclusion
                 if (rule.exclude_chains) {
                     const nameLower = v.name.toLowerCase();
@@ -155,7 +168,7 @@ export async function POST(req: NextRequest) {
                 // Keyword exclusion
                 if (rule.exclude_keywords && rule.exclude_keywords.length > 0) {
                     const nameLower = v.name.toLowerCase();
-                    const addressLower = (v.location.formatted_address || "").toLowerCase();
+                    const addressLower = (v.formatted || "").toLowerCase();
                     if (
                         rule.exclude_keywords.some(
                             (kw) =>
@@ -163,52 +176,54 @@ export async function POST(req: NextRequest) {
                                 addressLower.includes(kw.toLowerCase())
                         )
                     ) {
+                        console.log(`[search-venues] REJECTED (Keyword): ${v.name}`);
                         return false;
                     }
                 }
 
-                // Boundary filter
-                if (neighborhood.boundary_polygon?.geojson) {
-                    const geo = neighborhood.boundary_polygon.geojson as {
-                        type: string;
-                        coordinates: unknown;
-                    };
-                    if (!isWithinBoundary(v.geocodes.main.latitude, v.geocodes.main.longitude, geo)) {
+                // Opening days filter
+                if (rule.min_opening_days > 0) {
+                    const hours = getOpeningHours(v);
+                    const days = countOpeningDays(hours);
+                    if (days !== null && days < rule.min_opening_days) {
                         return false;
                     }
                 }
 
+                console.log(`[search-venues] PASSED: ${v.name}`);
                 return true;
             });
 
             totalFiltered += filtered.length;
 
-            // Dedup
-            const newVenues = filtered.filter((v) => !existingFsqIds.has(v.fsq_id));
+            // Dedup by place_id
+            const newVenues = filtered.filter((v) => !existingIds.has(v.place_id || ""));
             totalDupsSkipped += filtered.length - newVenues.length;
 
             // Save to Supabase
             for (const v of newVenues) {
+                const openingHours = getOpeningHours(v);
                 const venueData = {
                     campaign_id: campaignId,
                     neighborhood_id: neighborhoodId,
-                    fsq_id: v.fsq_id,
+                    fsq_id: v.place_id || "", // Reuse the fsq_id column for Geoapify place_id
                     name: v.name,
-                    address: v.location.formatted_address || v.location.address || "",
-                    latitude: v.geocodes.main.latitude,
-                    longitude: v.geocodes.main.longitude,
-                    rating: v.rating || null,
-                    total_ratings: v.stats?.total_ratings || null,
-                    opening_hours: v.hours || null,
-                    opening_days_count: countOpeningDays(v.hours),
-                    phone: v.tel || null,
-                    website: v.website || null,
+                    address: v.formatted || "",
+                    latitude: v.lat || 0,
+                    longitude: v.lon || 0,
+                    rating: null, // Geoapify (OSM) doesn't have ratings
+                    total_ratings: null,
+                    opening_hours: openingHours ? { display: openingHours } : null,
+                    opening_days_count: countOpeningDays(openingHours),
+                    phone: getPhone(v),
+                    website: getWebsite(v),
                     google_maps_url: generateMapsUrl(
-                        v.geocodes.main.latitude,
-                        v.geocodes.main.longitude,
-                        v.name
+                        v.lat || 0,
+                        v.lon || 0,
+                        v.name,
+                        v.formatted || ""
                     ),
-                    types: v.categories.map((c) => c.name),
+                    types: v.categories || [],
                     status: "new" as const,
                 };
 
@@ -220,7 +235,7 @@ export async function POST(req: NextRequest) {
 
                 if (!error && data) {
                     allNewVenues.push(data);
-                    existingFsqIds.add(v.fsq_id); // Track for cross-type dedup
+                    existingIds.add(v.place_id || "");
                 }
             }
         }
@@ -254,10 +269,10 @@ export async function POST(req: NextRequest) {
             newVenues: allNewVenues.length,
             venues: allNewVenues,
         });
-    } catch (err) {
+    } catch (err: any) {
         console.error("[search-venues]", err);
         return NextResponse.json(
-            { error: "Failed to search venues" },
+            { error: "Failed to search venues (Server trace): " + err.message },
             { status: 500 }
         );
     }

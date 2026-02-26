@@ -14,6 +14,9 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
     const [importResult, setImportResult] = useState<string | null>(null);
     const [importSourceName, setImportSourceName] = useState("");
 
+    const [notionExporting, setNotionExporting] = useState(false);
+    const [notionExportProgress, setNotionExportProgress] = useState<{ current: number; total: number } | null>(null);
+
     const [researchProgress, setResearchProgress] = useState<number | null>(null); // null means not researching all
 
     async function searchVenuesInNeighborhood(neighborhoodId: string, ruleId?: string) {
@@ -35,9 +38,9 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
                 const typeStr = ruleId ? `for this venue type` : `overall`;
                 alert(
                     `Search Complete!\n\n` +
-                    `Foursquare found: ${data.totalFound} venues ${typeStr}.\n` +
-                    `Filtered out (by rules/boundary): ${data.filtered}\n` +
-                    `Duplicates skipped (already in DB): ${data.duplicatesSkipped}\n` +
+                    `Total venues found by Foursquare: ${data.totalFound}\n` +
+                    `Venues that passed your rules & area: ${data.filtered}\n` +
+                    `Duplicates already in your campaign: ${data.duplicatesSkipped}\n` +
                     `Brand new leads added: ${data.newVenues}`
                 );
             }
@@ -63,6 +66,8 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
 
             if (!res.ok) {
                 alert("Research failed: " + (data.error || "Unknown error"));
+            } else if (data.aborted) {
+                alert(`Research for ${data.venue} aborted: ${data.message}`);
             }
         } catch {
             alert("Failed to research personnel");
@@ -83,6 +88,11 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
             await researchPersonnel(venue.id);
             completed++;
             setResearchProgress(Math.round((completed / unresearched.length) * 100));
+
+            // 4-second throttle to stay under 20 RPM Gemini limit
+            if (completed < unresearched.length) {
+                await new Promise(resolve => setTimeout(resolve, 4000));
+            }
         }
 
         setResearchProgress(null);
@@ -103,8 +113,54 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         loadCampaign();
     }
 
+    async function deleteVenue(venueId: string) {
+        if (!confirm("Are you sure you want to permanently delete this venue? This will also delete all researched personnel for it.")) return;
+
+        const { error } = await supabase.from("venues").delete().eq("id", venueId);
+        if (error) {
+            alert("Failed to delete venue: " + error.message);
+        } else {
+            loadCampaign();
+        }
+    }
+
     async function exportCSV() {
         window.open(`/api/export-csv?campaignId=${campaignId}`, "_blank");
+    }
+
+    async function exportToNotion(notionToken: string, notionDatabaseId: string, venueIds: string[]) {
+        if (!confirm(`Export ${venueIds.length} venue(s) to Notion?`)) return;
+
+        setNotionExporting(true);
+        setNotionExportProgress({ current: 0, total: venueIds.length });
+
+        try {
+            const res = await fetch("/api/export-notion", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    campaignId,
+                    venueIds,
+                    notionToken,
+                    notionDatabaseId,
+                    action: "export"
+                }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                alert(`Export failed: ${data.error || "Unknown error"}`);
+            } else {
+                alert(`Export Complete!\n\nSuccessfully exported ${data.exported}/${data.total} venues to Notion.${data.errors ? `\n\nErrors encountered: ${data.errors.length}` : ""}`);
+                loadCampaign(); // Refresh the venues list to reflect the new notion_exported status
+            }
+        } catch (err: any) {
+            alert(`Failed to export to Notion: ${err.message}`);
+        } finally {
+            setNotionExporting(false);
+            setNotionExportProgress(null);
+        }
     }
 
     async function importVenues(textOverride?: string, sourceNameOverride?: string) {
@@ -211,8 +267,12 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         researchAll,
         markAllCalled,
         updateVenueStatus,
+        deleteVenue,
         exportCSV,
         importVenues,
-        handleFileUploads
+        handleFileUploads,
+        exportToNotion,
+        notionExporting,
+        notionExportProgress
     };
 }
