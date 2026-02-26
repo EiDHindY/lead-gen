@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
             const filtered = typeVenues.filter((v) => {
                 // Chain exclusion
                 if (rule.exclude_chains) {
-                    const nameLower = v.name.toLowerCase();
+                    const nameLower = (v.name || "").toLowerCase();
                     if (CHAIN_KEYWORDS.some((chain) => nameLower.includes(chain))) {
                         return false;
                     }
@@ -171,13 +171,17 @@ export async function POST(req: NextRequest) {
 
                 // Keyword exclusion
                 if (rule.exclude_keywords && rule.exclude_keywords.length > 0) {
-                    const nameLower = v.name.toLowerCase();
+                    const nameLower = (v.name || "").toLowerCase();
                     const addressLower = (v.formatted || "").toLowerCase();
                     if (
                         rule.exclude_keywords.some(
-                            (kw) =>
-                                nameLower.includes(kw.toLowerCase()) ||
-                                addressLower.includes(kw.toLowerCase())
+                            (kw) => {
+                                const kwLower = (kw || "").toLowerCase();
+                                return (
+                                    (nameLower && nameLower.includes(kwLower)) ||
+                                    (addressLower && addressLower.includes(kwLower))
+                                );
+                            }
                         )
                     ) {
                         console.log(`[search-venues] REJECTED (Keyword): ${v.name}`);
@@ -211,7 +215,7 @@ export async function POST(req: NextRequest) {
                     campaign_id: campaignId,
                     neighborhood_id: neighborhoodId,
                     fsq_id: v.place_id || "", // Reuse the fsq_id column for Geoapify place_id
-                    name: v.name,
+                    name: v.name || "Unknown Venue",
                     address: v.formatted || "",
                     latitude: v.lat || 0,
                     longitude: v.lon || 0,
