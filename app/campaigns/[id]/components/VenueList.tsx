@@ -165,17 +165,42 @@ export function VenueList({
                                         onClick={() => {
                                             if (campaign.notion_token && campaign.notion_database_id) {
                                                 const activeVenues = filteredVenues.filter(v => v.status !== 'skipped');
-                                                const venueIdsToExport = activeVenues.map(v => v.id);
 
-                                                if (venueIdsToExport.length === 0) {
-                                                    alert("No active venues to export (all filtered venues are 'skipped').");
+                                                if (activeVenues.length === 0) {
+                                                    alert("No active venues to export.");
                                                     return;
                                                 }
 
-                                                const anyExported = activeVenues.some(v => v.notion_exported);
-                                                if (anyExported && !window.confirm("Some venues in this list have already been pushed to Notion. Push them again?")) {
-                                                    return;
+                                                const unexportedVenues = activeVenues.filter(v => !v.notion_exported);
+                                                const alreadyExportedCount = activeVenues.length - unexportedVenues.length;
+
+                                                let venueIdsToExport = activeVenues.map(v => v.id);
+
+                                                if (alreadyExportedCount > 0) {
+                                                    if (unexportedVenues.length === 0) {
+                                                        // Case: All were already exported
+                                                        if (!window.confirm(`All ${activeVenues.length} leads have already been pushed to Notion. Push them again?`)) {
+                                                            return;
+                                                        }
+                                                    } else {
+                                                        // Case: Mixed new and old
+                                                        const pushOnlyNew = window.confirm(
+                                                            `${alreadyExportedCount} leads were already pushed, while ${unexportedVenues.length} are new.\n\n` +
+                                                            `Click OK to export ONLY the ${unexportedVenues.length} new leads.\n` +
+                                                            `Click Cancel to export ALL ${activeVenues.length} leads again.`
+                                                        );
+
+                                                        if (pushOnlyNew) {
+                                                            venueIdsToExport = unexportedVenues.map(v => v.id);
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Case: All are new
+                                                    if (!window.confirm(`Export all ${venueIdsToExport.length} leads to Notion?`)) {
+                                                        return;
+                                                    }
                                                 }
+
                                                 exportToNotion(campaign.notion_token, campaign.notion_database_id, venueIdsToExport);
                                             } else {
                                                 onOpenNotionSettings();
