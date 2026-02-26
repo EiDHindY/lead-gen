@@ -332,47 +332,45 @@ export function NeighborhoodPanel({
                                                 )}
                                             </div>
                                             <div className="flex gap-2 ml-3">
-                                                {nb.status !== "completed" && (
-                                                    <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
-                                                        {campaignRules.length > 0 && (
-                                                            <select
-                                                                value={selectedRules[nb.id] || ""}
-                                                                onChange={(e) => setSelectedRules(prev => ({ ...prev, [nb.id]: e.target.value }))}
-                                                                className="px-2 py-1 text-xs rounded border border-border bg-background text-foreground"
-                                                            >
-                                                                <option value="" disabled>Select Type...</option>
-                                                                {campaignRules.map(rule => {
-                                                                    const isCompleted = completedSearches.some(s => s.neighborhood_id === nb.id && s.rule_id === rule.id);
-                                                                    return (
-                                                                        <option key={rule.id} value={rule.id}>
-                                                                            {isCompleted ? "✓ " : ""}{rule.venue_type}
-                                                                        </option>
-                                                                    );
-                                                                })}
-                                                            </select>
-                                                        )}
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                const ruleToSearch = selectedRules[nb.id] || (campaignRules.length > 0 ? campaignRules[0].id : undefined);
-                                                                if (!ruleToSearch && campaignRules.length > 0) {
-                                                                    alert("Please select a venue type to search");
-                                                                    return;
-                                                                }
-                                                                searchVenuesInNeighborhood(nb.id, ruleToSearch);
-                                                            }}
-                                                            disabled={searchingVenues === nb.id || campaignRules.length === 0}
-                                                            className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"
-                                                            title={campaignRules.length === 0 ? "Add rules first" : "Search specific venue type"}
+                                                <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                                                    {campaignRules.length > 0 && (
+                                                        <select
+                                                            value={selectedRules[nb.id] || ""}
+                                                            onChange={(e) => setSelectedRules(prev => ({ ...prev, [nb.id]: e.target.value }))}
+                                                            className="px-2 py-1 text-xs rounded border border-border bg-background text-foreground"
                                                         >
-                                                            {searchingVenues === nb.id ? (
-                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                            ) : (
-                                                                <Search className="w-3.5 h-3.5" />
-                                                            )}
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                            <option value="" disabled>Select Type...</option>
+                                                            {campaignRules.map(rule => {
+                                                                const isCompleted = completedSearches.some(s => s.neighborhood_id === nb.id && s.rule_id === rule.id);
+                                                                return (
+                                                                    <option key={rule.id} value={rule.id}>
+                                                                        {isCompleted ? "✓ " : ""}{rule.venue_type}
+                                                                    </option>
+                                                                );
+                                                            })}
+                                                        </select>
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const ruleToSearch = selectedRules[nb.id] || (campaignRules.length > 0 ? campaignRules[0].id : undefined);
+                                                            if (!ruleToSearch && campaignRules.length > 0) {
+                                                                alert("Please select a venue type to search");
+                                                                return;
+                                                            }
+                                                            searchVenuesInNeighborhood(nb.id, ruleToSearch);
+                                                        }}
+                                                        disabled={searchingVenues === nb.id || campaignRules.length === 0}
+                                                        className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"
+                                                        title={campaignRules.length === 0 ? "Add rules first" : "Search specific venue type"}
+                                                    >
+                                                        {searchingVenues === nb.id ? (
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        ) : (
+                                                            <Search className="w-3.5 h-3.5" />
+                                                        )}
+                                                    </button>
+                                                </div>
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -395,8 +393,9 @@ export function NeighborhoodPanel({
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                </div >
+            )
+            }
+        </div >
     );
 }
