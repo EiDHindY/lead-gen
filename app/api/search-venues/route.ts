@@ -244,17 +244,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Update neighborhood to completed
-        await supabase
-            .from("neighborhoods")
-            .update({
-                venues_found: (neighborhood.venues_found || 0) + allNewVenues.length,
-                searched_at: new Date().toISOString(),
-                status: "completed"
-            })
-            .eq("id", neighborhoodId);
-
-        // Record this specific search in the tracking table
+        // 1. Record this specific search in the tracking table first
         if (ruleId) {
             await supabase.from("neighborhood_searches").upsert({
                 campaign_id: campaignId,
@@ -266,6 +256,31 @@ export async function POST(req: NextRequest) {
                 onConflict: 'neighborhood_id, rule_id'
             });
         }
+
+        // 2. Determine final status based on how many rules have been searched
+        const { count: searchedCount } = await supabase
+            .from("neighborhood_searches")
+            .select("*", { count: 'exact', head: true })
+            .eq("neighborhood_id", neighborhoodId);
+
+        const { count: totalRulesCount } = await supabase
+            .from("campaign_rules")
+            .select("*", { count: 'exact', head: true })
+            .eq("campaign_id", campaignId);
+
+        // If searched >= total, it's completed. If > 0 but < total, it's searching. 
+        // Note: searchedCount will be at least 1 here because we just recorded it.
+        const newStatus = (searchedCount || 0) >= (totalRulesCount || 1) ? "completed" : "searching";
+
+        // 3. Update neighborhood
+        await supabase
+            .from("neighborhoods")
+            .update({
+                venues_found: (neighborhood.venues_found || 0) + allNewVenues.length,
+                searched_at: new Date().toISOString(),
+                status: newStatus
+            })
+            .eq("id", neighborhoodId);
 
         return NextResponse.json({
             totalFound,
