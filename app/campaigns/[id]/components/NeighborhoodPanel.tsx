@@ -33,6 +33,7 @@ interface NeighborhoodPanelProps {
     searchVenuesInNeighborhood: (id: string, ruleId?: string) => void;
     searchingVenues: string | null;
     deleteNeighborhood: (id: string) => void;
+    deleteBulkNeighborhoods: (ids: string[]) => void;
     campaignRules: CampaignRule[];
     completedSearches: any[];
     fetchingSubAreas: { id: number; loading: boolean };
@@ -57,6 +58,7 @@ export function NeighborhoodPanel({
     searchVenuesInNeighborhood,
     searchingVenues,
     deleteNeighborhood,
+    deleteBulkNeighborhoods,
     campaignRules,
     completedSearches,
     fetchingSubAreas,
@@ -69,6 +71,7 @@ export function NeighborhoodPanel({
     const [isOpen, setIsOpen] = useState(false);
     const [selectedRules, setSelectedRules] = useState<Record<string, string>>({});
     const [selectedStagedIds, setSelectedStagedIds] = useState<Set<number>>(new Set());
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "searching" | "completed">("all");
 
     const selectedNb = neighborhoods.find(n => n.id === selectedNeighborhood);
@@ -85,6 +88,32 @@ export function NeighborhoodPanel({
             setSelectedStagedIds(new Set());
         } else {
             setSelectedStagedIds(new Set(stagedAreas.map(a => a.osmId)));
+        }
+    }
+
+    const filteredNeighborhoods = neighborhoods.filter((nb) => {
+        if (statusFilter === "all") return true;
+        return nb.status === statusFilter;
+    });
+
+    const isAllSelected = filteredNeighborhoods.length > 0 && filteredNeighborhoods.every(nb => selectedIds.has(nb.id));
+
+    function toggleSelection(id: string) {
+        const next = new Set(selectedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIds(next);
+    }
+
+    function toggleAll() {
+        if (isAllSelected) {
+            const next = new Set(selectedIds);
+            filteredNeighborhoods.forEach(nb => next.delete(nb.id));
+            setSelectedIds(next);
+        } else {
+            const next = new Set(selectedIds);
+            filteredNeighborhoods.forEach(nb => next.add(nb.id));
+            setSelectedIds(next);
         }
     }
 
@@ -165,7 +194,11 @@ export function NeighborhoodPanel({
                                                         )}
                                                     </button>
                                                     <button
-                                                        onClick={() => addNeighborhood(area)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            addNeighborhood(area);
+                                                            setStatusFilter("all"); // Ensure it's visible if they had "Completed" filter on
+                                                        }}
                                                         className="w-full text-left p-1.5 rounded-lg hover:bg-primary/20 transition-all flex items-center justify-between group"
                                                         title="Add this area directly"
                                                     >
@@ -240,6 +273,7 @@ export function NeighborhoodPanel({
                                                 onClick={() => {
                                                     const selected = stagedAreas.filter(a => selectedStagedIds.has(a.osmId));
                                                     addBulkNeighborhoods(selected);
+                                                    setStatusFilter("all");
                                                     // Note: We don't discard right away here anymore so the user sees the list while waiting.
                                                     // The hook's addBulkNeighborhoods will trigger a loadCampaign on success.
                                                     // We'll let the user manually close or we can add a useEffect to clear if needed,
@@ -288,6 +322,35 @@ export function NeighborhoodPanel({
                                     ))}
                                 </div>
 
+                                <div className="flex items-center justify-between p-2 bg-background/50 rounded-lg border border-border/50 mb-2">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <div
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleAll();
+                                            }}
+                                            className="w-4 h-4 rounded border border-border bg-background flex items-center justify-center transition-all group-hover:border-primary"
+                                        >
+                                            {isAllSelected && <CheckSquare className="w-3.5 h-3.5 text-primary" />}
+                                        </div>
+                                        <span className="text-[10px] text-muted group-hover:text-foreground transition-colors">Select All {statusFilter !== 'all' ? statusFilter : ''}</span>
+                                    </label>
+
+                                    {selectedIds.size > 0 && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteBulkNeighborhoods(Array.from(selectedIds));
+                                                setSelectedIds(new Set());
+                                            }}
+                                            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-danger/10 text-danger hover:bg-danger/20 text-[10px] font-medium transition-all"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                            Delete {selectedIds.size}
+                                        </button>
+                                    )}
+                                </div>
+
                                 <div
                                     onClick={() => {
                                         setSelectedNeighborhood(null);
@@ -300,91 +363,98 @@ export function NeighborhoodPanel({
                                 >
                                     All Neighborhoods
                                 </div>
-                                {neighborhoods
-                                    .filter(nb => statusFilter === "all" || nb.status === statusFilter)
-                                    .map((nb) => (
+                                {filteredNeighborhoods.map((nb) => (
+                                    <div
+                                        key={nb.id}
+                                        onClick={() => {
+                                            setSelectedNeighborhood(nb.id);
+                                            setIsOpen(false);
+                                        }}
+                                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group ${selectedNeighborhood === nb.id
+                                            ? "bg-primary/10 border-primary ring-1 ring-primary/20"
+                                            : "bg-background border-border hover:border-primary/50"
+                                            }`}
+                                    >
                                         <div
-                                            key={nb.id}
-                                            onClick={() => {
-                                                setSelectedNeighborhood(nb.id);
-                                                setIsOpen(false);
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleSelection(nb.id);
                                             }}
-                                            className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${selectedNeighborhood === nb.id
-                                                ? "bg-primary/10 border-primary ring-1 ring-primary/20"
-                                                : "bg-background border-border hover:border-primary/50"
-                                                }`}
+                                            className="w-4 h-4 rounded border border-border bg-background flex items-center justify-center shrink-0 transition-all hover:border-primary"
                                         >
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="text-[13px] font-semibold text-foreground truncate">
-                                                        {nb.display_name || nb.name}
-                                                    </div>
-                                                    <span className={`badge badge-${nb.status} text-[10px] px-1.5 py-0.5 shrink-0`}>
-                                                        {nb.status}
+                                            {selectedIds.has(nb.id) && <CheckSquare className="w-3.5 h-3.5 text-primary" />}
+                                        </div>
+
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-[13px] font-semibold text-foreground truncate">
+                                                    {nb.display_name || nb.name}
+                                                </div>
+                                                <span className={`badge badge-${nb.status} text-[10px] px-1.5 py-0.5 shrink-0`}>
+                                                    {nb.status}
+                                                </span>
+                                            </div>
+                                            {nb.venues_found > 0 && (
+                                                <div className="mt-0.5">
+                                                    <span className="text-[10px] text-muted font-medium">
+                                                        {nb.venues_found} leads found
                                                     </span>
                                                 </div>
-                                                {nb.venues_found > 0 && (
-                                                    <div className="mt-0.5">
-                                                        <span className="text-[10px] text-muted font-medium">
-                                                            {nb.venues_found} leads found
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2 ml-3">
-                                                <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
-                                                    {campaignRules.length > 0 && (
-                                                        <select
-                                                            value={selectedRules[nb.id] || ""}
-                                                            onChange={(e) => setSelectedRules(prev => ({ ...prev, [nb.id]: e.target.value }))}
-                                                            className="px-2 py-1 text-xs rounded border border-border bg-background text-foreground"
-                                                        >
-                                                            <option value="" disabled>Select Type...</option>
-                                                            {campaignRules.map(rule => {
-                                                                const isCompleted = completedSearches.some(s => s.neighborhood_id === nb.id && s.rule_id === rule.id);
-                                                                return (
-                                                                    <option key={rule.id} value={rule.id}>
-                                                                        {isCompleted ? "✓ " : ""}{rule.venue_type}
-                                                                    </option>
-                                                                );
-                                                            })}
-                                                        </select>
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const ruleToSearch = selectedRules[nb.id] || (campaignRules.length > 0 ? campaignRules[0].id : undefined);
-                                                            if (!ruleToSearch && campaignRules.length > 0) {
-                                                                alert("Please select a venue type to search");
-                                                                return;
-                                                            }
-                                                            searchVenuesInNeighborhood(nb.id, ruleToSearch);
-                                                        }}
-                                                        disabled={searchingVenues === nb.id || campaignRules.length === 0}
-                                                        className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"
-                                                        title={campaignRules.length === 0 ? "Add rules first" : "Search specific venue type"}
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2 ml-3 shrink-0">
+                                            <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                                                {campaignRules.length > 0 && (
+                                                    <select
+                                                        value={selectedRules[nb.id] || ""}
+                                                        onChange={(e) => setSelectedRules(prev => ({ ...prev, [nb.id]: e.target.value }))}
+                                                        className="px-2 py-1 text-xs rounded border border-border bg-background text-foreground"
                                                     >
-                                                        {searchingVenues === nb.id ? (
-                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                        ) : (
-                                                            <Search className="w-3.5 h-3.5" />
-                                                        )}
-                                                    </button>
-                                                </div>
+                                                        <option value="" disabled>Select Type...</option>
+                                                        {campaignRules.map(rule => {
+                                                            const isCompleted = completedSearches.some(s => s.neighborhood_id === nb.id && s.rule_id === rule.id);
+                                                            return (
+                                                                <option key={rule.id} value={rule.id}>
+                                                                    {isCompleted ? "✓ " : ""}{rule.venue_type}
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </select>
+                                                )}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        deleteNeighborhood(nb.id);
+                                                        const ruleToSearch = selectedRules[nb.id] || (campaignRules.length > 0 ? campaignRules[0].id : undefined);
+                                                        if (!ruleToSearch && campaignRules.length > 0) {
+                                                            alert("Please select a venue type to search");
+                                                            return;
+                                                        }
+                                                        searchVenuesInNeighborhood(nb.id, ruleToSearch);
                                                     }}
-                                                    className="p-1.5 rounded-lg hover:bg-danger/20 text-danger/40 hover:text-danger transition-colors"
-                                                    title="Delete"
+                                                    disabled={searchingVenues === nb.id || campaignRules.length === 0}
+                                                    className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"
+                                                    title={campaignRules.length === 0 ? "Add rules first" : "Search specific venue type"}
                                                 >
-                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                    {searchingVenues === nb.id ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    ) : (
+                                                        <Search className="w-3.5 h-3.5" />
+                                                    )}
                                                 </button>
                                             </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    deleteNeighborhood(nb.id);
+                                                }}
+                                                className="p-1.5 rounded-lg hover:bg-danger/20 text-danger/40 hover:text-danger transition-colors"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
                                         </div>
-                                    ))}
-
+                                    </div>
+                                ))}
                                 {neighborhoods.length === 0 && (
                                     <p className="text-[10px] text-muted text-center py-2">
                                         Search and add neighborhoods above
@@ -393,9 +463,8 @@ export function NeighborhoodPanel({
                             </div>
                         </div>
                     </div>
-                </div >
-            )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 }

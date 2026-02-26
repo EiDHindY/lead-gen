@@ -152,6 +152,28 @@ export function useNeighborhoods(campaignId: string, loadCampaign: () => Promise
         }
     }
 
+    async function deleteBulkNeighborhoods(neighborhoodIds: string[]) {
+        if (neighborhoodIds.length === 0) return;
+        if (!confirm(`Delete ${neighborhoodIds.length} neighborhoods and all their venues?`)) return;
+
+        // Delete venues for all selected neighborhoods
+        await supabase
+            .from("venues")
+            .delete()
+            .in("neighborhood_id", neighborhoodIds);
+
+        // Delete the neighborhoods
+        await supabase
+            .from("neighborhoods")
+            .delete()
+            .in("id", neighborhoodIds);
+
+        loadCampaign();
+        if (selectedNeighborhood && neighborhoodIds.includes(selectedNeighborhood)) {
+            setSelectedNeighborhood(null);
+        }
+    }
+
     return {
         areaQuery,
         setAreaQuery,
@@ -163,6 +185,7 @@ export function useNeighborhoods(campaignId: string, loadCampaign: () => Promise
         handleAreaSearch,
         addNeighborhood,
         deleteNeighborhood,
+        deleteBulkNeighborhoods,
         fetchingSubAreas,
         stagedAreas,
         fetchSubAreas,

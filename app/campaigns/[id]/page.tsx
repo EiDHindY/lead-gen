@@ -13,7 +13,6 @@ export default function CampaignDetailPage() {
     const { id } = useParams<{ id: string }>();
     const [showNotionSettings, setShowNotionSettings] = useState(false);
 
-    // Data Loading Hook
     const {
         campaign,
         campaignRules,
@@ -38,6 +37,7 @@ export default function CampaignDetailPage() {
         handleAreaSearch,
         addNeighborhood,
         deleteNeighborhood,
+        deleteBulkNeighborhoods,
         fetchingSubAreas,
         stagedAreas,
         fetchSubAreas,
@@ -111,6 +111,7 @@ export default function CampaignDetailPage() {
                         searchVenuesInNeighborhood={searchVenuesInNeighborhood}
                         searchingVenues={searchingVenues}
                         deleteNeighborhood={deleteNeighborhood}
+                        deleteBulkNeighborhoods={deleteBulkNeighborhoods}
                         campaignRules={campaignRules}
                         completedSearches={completedSearches}
                         fetchingSubAreas={fetchingSubAreas}

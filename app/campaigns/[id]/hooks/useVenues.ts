@@ -38,18 +38,20 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
                 const typeStr = ruleId ? `for this venue type` : `overall`;
                 alert(
                     `Search Complete!\n\n` +
-                    `Total venues found by Foursquare: ${data.totalFound}\n` +
+                    `Total venues found by Geoapify: ${data.totalFound}\n` +
                     `Venues that passed your rules & area: ${data.filtered}\n` +
                     `Duplicates already in your campaign: ${data.duplicatesSkipped}\n` +
                     `Brand new leads added: ${data.newVenues}`
                 );
             }
+
+            setSearchingVenues(null);
+            loadCampaign(); // Refresh in background immediately
         } catch {
             alert("Failed to search venues");
+            setSearchingVenues(null);
+            loadCampaign();
         }
-
-        setSearchingVenues(null);
-        loadCampaign();
     }
 
     async function researchPersonnel(venueId: string) {

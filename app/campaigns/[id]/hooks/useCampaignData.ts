@@ -18,7 +18,7 @@ export function useCampaignData(id: string) {
     const [loading, setLoading] = useState(true);
 
     const loadCampaign = useCallback(async () => {
-        setLoading(true);
+        if (!campaign) setLoading(true);
 
         const { data: campaignData } = await supabase
             .from("campaigns")
