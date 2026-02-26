@@ -30,12 +30,19 @@ export interface OverpassResponse {
     elements: OverpassElement[];
 }
 
+// OpenStreetMap Overpass API mirrors to handle high load or timeouts on specific servers
+const OVERPASS_MIRRORS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://lz4.overpass-api.de/api/interpreter',
+    'https://overpass.nchc.org.tw/api/interpreter'
+];
+
 /**
  * Fetch sub-neighborhoods (suburbs, neighborhoods) within a given OSM area ID
  */
 export async function getSubAreas(osmId: number, osmType: string): Promise<OverpassElement[]> {
     // Determine the Overpass Area ID based on the osm_type.
-    // Relations add 3600000000, Ways add 2400000000. Nodes don't form areas.
     let areaIdOffset = 0;
     if (osmType === 'relation') {
         areaIdOffset = 3600000000;
@@ -47,8 +54,6 @@ export async function getSubAreas(osmId: number, osmType: string): Promise<Overp
 
     const areaId = areaIdOffset + osmId;
 
-    // We query for nodes, ways, and relations tagged as place=suburb OR place=neighbourhood
-    // inside the parent area. We ask it to output the bounding box (bb) and the center point.
     const query = `
         [out:json][timeout:25];
         area(${areaId})->.searchArea;
@@ -60,23 +65,38 @@ export async function getSubAreas(osmId: number, osmType: string): Promise<Overp
         out center bb;
     `;
 
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': "LeadGenApp/1.0 (dodo@leadgen.app)",
-        },
-        body: `data=${encodeURIComponent(query)}`
-    });
+    let lastError = null;
 
-    if (!res.ok) {
-        throw new Error(`Overpass API failed (${res.status})`);
+    // Try mirrors in order
+    for (const mirror of OVERPASS_MIRRORS) {
+        try {
+            console.log(`[overpass] Trying mirror: ${mirror}`);
+            const res = await fetch(mirror, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'User-Agent': "LeadGenApp/1.0 (dodo@leadgen.app)",
+                },
+                body: `data=${encodeURIComponent(query)}`,
+                // Add a fetch timeout signal here if needed, but the server usually respects [timeout:25]
+            });
+
+            if (!res.ok) {
+                console.warn(`[overpass] Mirror ${mirror} returned status ${res.status}`);
+                continue;
+            }
+
+            const data: OverpassResponse = await res.json();
+            console.log(`[overpass] Success using mirror: ${mirror}`);
+            return data.elements.filter(el => el.tags && el.tags.name);
+
+        } catch (err: any) {
+            console.error(`[overpass] Mirror ${mirror} failed:`, err.message);
+            lastError = err;
+        }
     }
 
-    const data: OverpassResponse = await res.json();
-
-    // Filter out elements that don't have a name
-    return data.elements.filter(el => el.tags && el.tags.name);
+    throw new Error(`All Overpass API mirrors failed. Last error: ${lastError?.message || 'Timeout'}`);
 }
 
 /**

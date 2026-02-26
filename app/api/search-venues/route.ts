@@ -21,8 +21,12 @@ const CHAIN_KEYWORDS = [
 ];
 
 export async function POST(req: NextRequest) {
+    let campaignId: string | undefined, neighborhoodId: string | undefined, ruleId: string | undefined;
     try {
-        const { campaignId, neighborhoodId, ruleId } = await req.json();
+        const body = await req.json();
+        campaignId = body.campaignId;
+        neighborhoodId = body.neighborhoodId;
+        ruleId = body.ruleId;
 
         if (!campaignId || !neighborhoodId) {
             return NextResponse.json(
@@ -240,12 +244,13 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Update neighborhood
+        // Update neighborhood to completed
         await supabase
             .from("neighborhoods")
             .update({
                 venues_found: (neighborhood.venues_found || 0) + allNewVenues.length,
                 searched_at: new Date().toISOString(),
+                status: "completed"
             })
             .eq("id", neighborhoodId);
 
@@ -271,6 +276,15 @@ export async function POST(req: NextRequest) {
         });
     } catch (err: any) {
         console.error("[search-venues]", err);
+
+        // Reset status to allow retry if it failed
+        if (typeof neighborhoodId !== 'undefined') {
+            await supabase
+                .from("neighborhoods")
+                .update({ status: "new" })
+                .eq("id", neighborhoodId);
+        }
+
         return NextResponse.json(
             { error: "Failed to search venues (Server trace): " + err.message },
             { status: 500 }
