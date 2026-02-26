@@ -69,6 +69,7 @@ export function NeighborhoodPanel({
     const [isOpen, setIsOpen] = useState(false);
     const [selectedRules, setSelectedRules] = useState<Record<string, string>>({});
     const [selectedStagedIds, setSelectedStagedIds] = useState<Set<number>>(new Set());
+    const [statusFilter, setStatusFilter] = useState<"all" | "new" | "searching" | "completed">("all");
 
     const selectedNb = neighborhoods.find(n => n.id === selectedNeighborhood);
 
@@ -266,6 +267,27 @@ export function NeighborhoodPanel({
 
                             {/* Existing neighborhoods */}
                             <div className="space-y-2">
+                                {/* Status Filters */}
+                                <div className="flex gap-1 mb-3 bg-background/50 p-1 rounded-lg border border-border">
+                                    {[
+                                        { id: "all", label: "All" },
+                                        { id: "new", label: "Pending" },
+                                        { id: "searching", label: "Searching" },
+                                        { id: "completed", label: "Completed" }
+                                    ].map((f) => (
+                                        <button
+                                            key={f.id}
+                                            onClick={() => setStatusFilter(f.id as any)}
+                                            className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition-all ${statusFilter === f.id
+                                                    ? "bg-primary text-primary-foreground shadow-sm"
+                                                    : "text-muted hover:text-foreground hover:bg-surface-hover"
+                                                }`}
+                                        >
+                                            {f.label}
+                                        </button>
+                                    ))}
+                                </div>
+
                                 <div
                                     onClick={() => {
                                         setSelectedNeighborhood(null);
@@ -278,90 +300,92 @@ export function NeighborhoodPanel({
                                 >
                                     All Neighborhoods
                                 </div>
-                                {neighborhoods.map((nb) => (
-                                    <div
-                                        key={nb.id}
-                                        onClick={() => {
-                                            setSelectedNeighborhood(nb.id);
-                                            setIsOpen(false);
-                                        }}
-                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${selectedNeighborhood === nb.id
-                                            ? "bg-primary/10 border-primary ring-1 ring-primary/20"
-                                            : "bg-background border-border hover:border-primary/50"
-                                            }`}
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <div className="text-[13px] font-semibold text-foreground truncate">
-                                                    {nb.display_name || nb.name}
-                                                </div>
-                                                <span className={`badge badge-${nb.status} text-[10px] px-1.5 py-0.5 shrink-0`}>
-                                                    {nb.status}
-                                                </span>
-                                            </div>
-                                            {nb.venues_found > 0 && (
-                                                <div className="mt-0.5">
-                                                    <span className="text-[10px] text-muted font-medium">
-                                                        {nb.venues_found} leads found
+                                {neighborhoods
+                                    .filter(nb => statusFilter === "all" || nb.status === statusFilter)
+                                    .map((nb) => (
+                                        <div
+                                            key={nb.id}
+                                            onClick={() => {
+                                                setSelectedNeighborhood(nb.id);
+                                                setIsOpen(false);
+                                            }}
+                                            className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${selectedNeighborhood === nb.id
+                                                ? "bg-primary/10 border-primary ring-1 ring-primary/20"
+                                                : "bg-background border-border hover:border-primary/50"
+                                                }`}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-[13px] font-semibold text-foreground truncate">
+                                                        {nb.display_name || nb.name}
+                                                    </div>
+                                                    <span className={`badge badge-${nb.status} text-[10px] px-1.5 py-0.5 shrink-0`}>
+                                                        {nb.status}
                                                     </span>
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="flex gap-2 ml-3">
-                                            {nb.status !== "completed" && (
-                                                <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
-                                                    {campaignRules.length > 0 && (
-                                                        <select
-                                                            value={selectedRules[nb.id] || ""}
-                                                            onChange={(e) => setSelectedRules(prev => ({ ...prev, [nb.id]: e.target.value }))}
-                                                            className="px-2 py-1 text-xs rounded border border-border bg-background text-foreground"
-                                                        >
-                                                            <option value="" disabled>Select Type...</option>
-                                                            {campaignRules.map(rule => {
-                                                                const isCompleted = completedSearches.some(s => s.neighborhood_id === nb.id && s.rule_id === rule.id);
-                                                                return (
-                                                                    <option key={rule.id} value={rule.id}>
-                                                                        {isCompleted ? "✓ " : ""}{rule.venue_type}
-                                                                    </option>
-                                                                );
-                                                            })}
-                                                        </select>
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const ruleToSearch = selectedRules[nb.id] || (campaignRules.length > 0 ? campaignRules[0].id : undefined);
-                                                            if (!ruleToSearch && campaignRules.length > 0) {
-                                                                alert("Please select a venue type to search");
-                                                                return;
-                                                            }
-                                                            searchVenuesInNeighborhood(nb.id, ruleToSearch);
-                                                        }}
-                                                        disabled={searchingVenues === nb.id || campaignRules.length === 0}
-                                                        className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"
-                                                        title={campaignRules.length === 0 ? "Add rules first" : "Search specific venue type"}
-                                                    >
-                                                        {searchingVenues === nb.id ? (
-                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                        ) : (
-                                                            <Search className="w-3.5 h-3.5" />
+                                                {nb.venues_found > 0 && (
+                                                    <div className="mt-0.5">
+                                                        <span className="text-[10px] text-muted font-medium">
+                                                            {nb.venues_found} leads found
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2 ml-3">
+                                                {nb.status !== "completed" && (
+                                                    <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                                                        {campaignRules.length > 0 && (
+                                                            <select
+                                                                value={selectedRules[nb.id] || ""}
+                                                                onChange={(e) => setSelectedRules(prev => ({ ...prev, [nb.id]: e.target.value }))}
+                                                                className="px-2 py-1 text-xs rounded border border-border bg-background text-foreground"
+                                                            >
+                                                                <option value="" disabled>Select Type...</option>
+                                                                {campaignRules.map(rule => {
+                                                                    const isCompleted = completedSearches.some(s => s.neighborhood_id === nb.id && s.rule_id === rule.id);
+                                                                    return (
+                                                                        <option key={rule.id} value={rule.id}>
+                                                                            {isCompleted ? "✓ " : ""}{rule.venue_type}
+                                                                        </option>
+                                                                    );
+                                                                })}
+                                                            </select>
                                                         )}
-                                                    </button>
-                                                </div>
-                                            )}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    deleteNeighborhood(nb.id);
-                                                }}
-                                                className="p-1.5 rounded-lg hover:bg-danger/20 text-danger/40 hover:text-danger transition-colors"
-                                                title="Delete"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const ruleToSearch = selectedRules[nb.id] || (campaignRules.length > 0 ? campaignRules[0].id : undefined);
+                                                                if (!ruleToSearch && campaignRules.length > 0) {
+                                                                    alert("Please select a venue type to search");
+                                                                    return;
+                                                                }
+                                                                searchVenuesInNeighborhood(nb.id, ruleToSearch);
+                                                            }}
+                                                            disabled={searchingVenues === nb.id || campaignRules.length === 0}
+                                                            className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"
+                                                            title={campaignRules.length === 0 ? "Add rules first" : "Search specific venue type"}
+                                                        >
+                                                            {searchingVenues === nb.id ? (
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Search className="w-3.5 h-3.5" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        deleteNeighborhood(nb.id);
+                                                    }}
+                                                    className="p-1.5 rounded-lg hover:bg-danger/20 text-danger/40 hover:text-danger transition-colors"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
 
                                 {neighborhoods.length === 0 && (
                                     <p className="text-[10px] text-muted text-center py-2">
