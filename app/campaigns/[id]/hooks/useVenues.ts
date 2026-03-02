@@ -145,7 +145,11 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
     async function updateVenuePhone(venueId: string, phone: string) {
         const { error } = await supabase
             .from("venues")
-            .update({ phone, status: "new" }) // Reset to "new" so it can be searched
+            .update({
+                phone,
+                status: "new",
+                updated_at: new Date().toISOString()
+            })
             .eq("id", venueId);
 
         if (error) {

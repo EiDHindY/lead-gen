@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
         const productDescription =
             campaign?.product_description || "our product/service";
 
+        console.log(`[get-personnel] Final Product Description: "${productDescription}"`);
+
         // 3. Get campaign rules for this venue type to get "AI Search Rules"
         const { data: allRules } = await supabase
             .from("campaign_rules")
@@ -198,11 +200,11 @@ export async function POST(req: NextRequest) {
             personnel: insertedPersonnel,
         });
     } catch (err: any) {
-        console.error(`[get-personnel] Error researching venue ${venueId}:`, err);
+        console.error(`[get-personnel] CRITICAL ERROR researching venue ${venueId}:`, err);
         return NextResponse.json(
             {
                 error: "Failed to research personnel",
-                details: err.message,
+                details: err.message || "Unknown internal error",
                 venueId
             },
             { status: 500 }
