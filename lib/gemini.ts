@@ -66,14 +66,15 @@ export async function researchVenuePersonnel(
             console.warn(`[AI] Error on Gemini ${modelName}:`, err.message);
 
             // If it's a quota error, a 404 (model not found), or other model-specific transient issues, try next
+            const errMsg = err?.message || "";
             const shouldTryNext = isQuotaError(err) ||
-                err.message.includes("404") ||
-                err.message.includes("not found") ||
-                err.message.includes("not supported");
+                errMsg.includes("404") ||
+                errMsg.includes("not found") ||
+                errMsg.includes("not supported");
 
-            if (shouldTryNext) {
-                console.warn(`[AI] ${modelName} unavailable, trying next model...`);
-                depletedModels.add(modelName);
+            if (shouldTryNext || isSafetyError(err)) {
+                console.warn(`[AI] ${modelName} unavailable or blocked (Safety), trying next model...`);
+                if (isQuotaError(err)) depletedModels.add(modelName);
                 await sleep(1000);
                 continue;
             }
@@ -108,11 +109,13 @@ export async function researchVenuePhone(
     venueAddress: string,
     venueTypes: string[]
 ): Promise<string | null> {
-    const prompt = `You are a research assistant. Find the official, current phone number for the following venue.
+    const prompt = `You are a strict research assistant. Find the official, current phone number for the following venue.
     
     VENUE: ${venueName}
     ADDRESS: ${venueAddress}
     TYPES: ${venueTypes.join(", ")}
+    
+    CRITICAL INSTRUCTION: Do not guess, fabricate, or hallucinate. If you cannot find a verifiable number for this specific location, return NONE.
     
     Respond ONLY with the phone number in international format (e.g. +1 555-0123) or the word "NONE" if you cannot verify a specific number for this specific location. No other text.`;
 
@@ -167,6 +170,7 @@ async function callGemini(
     const model = genAI.getGenerativeModel({ model: modelName });
     const result = await model.generateContent(prompt);
     const text = result.response.text();
+    console.log(`[AI] Raw response from ${modelName}:`, text);
     const personnel = parsePersonnelFromResponse(text);
     return { personnel, raw_response: text };
 }
@@ -190,7 +194,7 @@ async function callGroq(prompt: string): Promise<ResearchResult> {
             messages: [
                 {
                     role: "system",
-                    content: "You are a lead generation research assistant. Always respond with valid JSON only.",
+                    content: "You are a highly precise lead generation research assistant. You MUST NOT hallucinate or guess names. If verifiable names cannot be found, return an empty personnel array. Always respond with valid JSON only.",
                 },
                 { role: "user", content: prompt },
             ],
@@ -209,6 +213,7 @@ async function callGroq(prompt: string): Promise<ResearchResult> {
 
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content || "";
+    console.log(`[AI] Raw response from Groq:`, text);
     const personnel = parsePersonnelFromResponse(text);
     return { personnel, raw_response: text };
 }
@@ -221,7 +226,7 @@ function buildPrompt(
     venueTypes: string[],
     productDescription: string
 ): string {
-    return `You are a lead generation research assistant. Research the following venue and find ALL key decision-makers (owner, general manager, director, operations manager, etc.).
+    return `You are a strict and highly precise lead generation research assistant. Your task is to research the following venue and find ALL key decision-makers (owner, general manager, director, operations manager, etc.).
 
 VENUE INFORMATION:
 - Name: ${venueName}
@@ -231,11 +236,13 @@ VENUE INFORMATION:
 PRODUCT BEING SOLD:
 ${productDescription}
 
-1. ONLY find personnel if you can discover their actual FULL NAMES (e.g., 'John Doe', 'Jane Smith').
-2. DO NOT return generic results like 'General Manager' or 'Owner' if you cannot find a specific person's name associated with that role.
-3. If you cannot find any specific personnel with verifiable names, return an empty list for the 'personnel' array.
-4. For each person with a name, generate a concise, professional pitch tailored to their specific role.
-5. Include any specific phone numbers or emails you can find.
+CRITICAL INSTRUCTIONS TO PREVENT HALLUCINATIONS:
+1. ONLY return personnel if you are ABSOLUTELY CERTAIN they currently work at this specific location and you can discover their actual FULL NAMES (e.g., 'John Doe', 'Jane Smith').
+2. DO NOT guess, fabricate, or hallucinate names. It is completely unacceptable to return fake people.
+3. DO NOT return generic placeholders like 'General Manager' or 'Owner' if you cannot find a specific person's verifiable FULL NAME.
+4. If you cannot find any specific personnel with verifiable names for this exact venue, IT IS BETTER TO RETURN AN EMPTY LIST THAN TO GUESS. Return an empty list for the 'personnel' array.
+5. For each person with a verifiable name, generate a concise, professional pitch tailored to their specific role.
+6. Include any specific phone numbers or emails you can find, but do not hallucinate them if unknown.
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -250,7 +257,7 @@ Respond ONLY with valid JSON in this exact format:
   ]
 }
 
-If no people with specific names are found, return exactly: {"personnel": []}`;
+If no verifiable people with specific names are found, return exactly: {"personnel": []}`;
 }
 
 function parsePersonnelFromResponse(text: string): PersonnelResult[] {
@@ -305,13 +312,26 @@ function parsePersonnelFromResponse(text: string): PersonnelResult[] {
     }
 }
 
-function isQuotaError(err: unknown): boolean {
+function isSafetyError(err: unknown): boolean {
     if (err instanceof Error) {
+        const msg = (err.message || "").toLowerCase();
         return (
-            err.message.includes("429") ||
-            err.message.includes("RESOURCE_EXHAUSTED") ||
-            err.message.includes("quota") ||
-            err.message.includes("rate_limit")
+            msg.includes("safety") ||
+            msg.includes("finish_reason_safety") ||
+            msg.includes("blocked")
+        );
+    }
+    return false;
+}
+
+export function isQuotaError(err: unknown): boolean {
+    if (err instanceof Error) {
+        const msg = err.message || "";
+        return (
+            msg.includes("429") ||
+            msg.includes("RESOURCE_EXHAUSTED") ||
+            msg.includes("quota") ||
+            msg.includes("rate_limit")
         );
     }
     return false;

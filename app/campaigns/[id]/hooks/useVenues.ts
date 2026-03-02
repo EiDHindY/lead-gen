@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase, type Venue } from "@/lib/supabase";
 
-export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () => Promise<void>) {
+export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () => Promise<void>, selectedNeighborhood: string | null) {
     const [searchingVenues, setSearchingVenues] = useState<string | null>(null);
     const [researchingVenue, setResearchingVenue] = useState<string | null>(null);
     const [expandedVenue, setExpandedVenue] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         }
     }
 
-    async function researchPersonnel(venueId: string) {
+    async function researchPersonnel(venueId: string, silent = false) {
         setResearchingVenue(venueId);
 
         try {
@@ -67,27 +67,38 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
             const data = await res.json();
 
             if (!res.ok) {
-                alert("Research failed: " + (data.error || "Unknown error"));
+                if (!silent) alert("Research failed: " + (data.error || "Unknown error"));
+                throw new Error(data.error || "Unknown error");
             } else if (data.aborted) {
-                alert(`Research for ${data.venue} aborted: ${data.message}`);
+                if (!silent) alert(`Research for ${data.venue} aborted: ${data.message}`);
+                console.log(`[useVenues] Research for ${data.venue} aborted: ${data.message}`);
             }
-        } catch {
-            alert("Failed to research personnel");
+        } catch (err: any) {
+            if (!silent) alert("Failed to research personnel: " + (err.message || ""));
+            throw err;
+        } finally {
+            setResearchingVenue(null);
+            loadCampaign();
         }
-
-        setResearchingVenue(null);
-        loadCampaign();
     }
 
     async function researchAll() {
-        const unresearched = venues.filter((v) => v.status === "new");
+        const filtered = selectedNeighborhood
+            ? venues.filter((v) => v.neighborhood_id === selectedNeighborhood)
+            : venues;
+        const unresearched = filtered.filter((v) => v.status === "new");
         if (unresearched.length === 0) return;
 
         setResearchProgress(0);
         let completed = 0;
 
         for (const venue of unresearched) {
-            await researchPersonnel(venue.id);
+            try {
+                await researchPersonnel(venue.id, true);
+            } catch (err: any) {
+                console.error(`[useVenues] Failed to research "${venue.name}":`, err.message);
+            }
+
             completed++;
             setResearchProgress(Math.round((completed / unresearched.length) * 100));
 
@@ -101,7 +112,10 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
     }
 
     async function markAllCalled() {
-        const newVenues = venues.filter((v) => v.status === "new" || v.status === "researched");
+        const filtered = selectedNeighborhood
+            ? venues.filter((v) => v.neighborhood_id === selectedNeighborhood)
+            : venues;
+        const newVenues = filtered.filter((v) => v.status === "new" || v.status === "researched");
         if (!confirm(`Mark ${newVenues.length} venues as called?`)) return;
 
         const ids = newVenues.map((v) => v.id);

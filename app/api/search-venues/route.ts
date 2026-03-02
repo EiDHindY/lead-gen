@@ -126,10 +126,18 @@ export async function POST(req: NextRequest) {
         }
 
         for (const rule of rules as CampaignRule[]) {
-            // Map venue type to Geoapify categories
-            const categories = mapVenueTypes([rule.venue_type]);
+            // Debug: log the actual type and value of venue_type from DB
+            console.log(`[search-venues] rule.venue_type type=${typeof rule.venue_type} value=`, JSON.stringify(rule.venue_type));
 
-            console.log(`[search-venues] Processing rule: ${rule.venue_type} → categories: ${categories}`);
+            // Ensure venue_type is a string (DB might return unexpected types)
+            const venueTypeStr = typeof rule.venue_type === "string"
+                ? rule.venue_type
+                : String((rule.venue_type as any)?.name ?? (rule.venue_type as any)?.venue_type ?? rule.venue_type ?? "");
+
+            // Map venue type to Geoapify categories
+            const categories = mapVenueTypes([venueTypeStr]);
+
+            console.log(`[search-venues] Processing rule: ${venueTypeStr} → categories: ${categories}`);
 
             // Search with pagination (Geoapify uses offset)
             const typeVenues: GeoapifyVenue[] = [];
@@ -157,13 +165,13 @@ export async function POST(req: NextRequest) {
             } while (typeVenues.length < 300);
 
             totalFound += typeVenues.length;
-            console.log(`[search-venues] Rule ${rule.venue_type}: Found ${typeVenues.length} venues.`);
+            console.log(`[search-venues] Rule ${venueTypeStr}: Found ${typeVenues.length} venues.`);
 
             // Apply filters
             const filtered = typeVenues.filter((v) => {
                 // Chain exclusion
                 if (rule.exclude_chains) {
-                    const nameLower = (v.name || "").toLowerCase();
+                    const nameLower = String(v.name || "").toLowerCase();
                     if (CHAIN_KEYWORDS.some((chain) => nameLower.includes(chain))) {
                         return false;
                     }
@@ -171,12 +179,12 @@ export async function POST(req: NextRequest) {
 
                 // Keyword exclusion
                 if (rule.exclude_keywords && rule.exclude_keywords.length > 0) {
-                    const nameLower = (v.name || "").toLowerCase();
-                    const addressLower = (v.formatted || "").toLowerCase();
+                    const nameLower = String(v.name || "").toLowerCase();
+                    const addressLower = String(v.formatted || "").toLowerCase();
                     if (
                         rule.exclude_keywords.some(
                             (kw) => {
-                                const kwLower = (kw || "").toLowerCase();
+                                const kwLower = String(kw || "").toLowerCase();
                                 return (
                                     (nameLower && nameLower.includes(kwLower)) ||
                                     (addressLower && addressLower.includes(kwLower))

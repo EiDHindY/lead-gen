@@ -54,25 +54,34 @@ export function useCampaignData(id: string) {
             .from("venues")
             .select("*")
             .eq("campaign_id", id)
-            .order("rating", { ascending: false });
+            .order("created_at", { ascending: false })
+            .limit(5000);
 
         if (venueData) {
             setVenues(venueData);
 
-            // Load personnel for all venues
+            // Load personnel for all venues (chunked to avoid URL length limits)
             const venueIds = venueData.map((v) => v.id);
             if (venueIds.length > 0) {
-                const { data: personnelData } = await supabase
-                    .from("venue_personnel")
-                    .select("*")
-                    .in("venue_id", venueIds);
+                const CHUNK_SIZE = 200;
+                const allPersonnel: VenuePersonnel[] = [];
+
+                for (let i = 0; i < venueIds.length; i += CHUNK_SIZE) {
+                    const chunk = venueIds.slice(i, i + CHUNK_SIZE);
+                    const { data: personnelData } = await supabase
+                        .from("venue_personnel")
+                        .select("*")
+                        .in("venue_id", chunk);
+
+                    if (personnelData) {
+                        allPersonnel.push(...personnelData);
+                    }
+                }
 
                 const grouped: Record<string, VenuePersonnel[]> = {};
-                if (personnelData) {
-                    for (const p of personnelData) {
-                        if (!grouped[p.venue_id]) grouped[p.venue_id] = [];
-                        grouped[p.venue_id].push(p);
-                    }
+                for (const p of allPersonnel) {
+                    if (!grouped[p.venue_id]) grouped[p.venue_id] = [];
+                    grouped[p.venue_id].push(p);
                 }
                 setPersonnelMap(grouped);
             }

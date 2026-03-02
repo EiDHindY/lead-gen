@@ -74,7 +74,7 @@ export default function CampaignDetailPage() {
         exportToNotion,
         notionExporting,
         notionExportProgress
-    } = useVenues(id, venues, loadCampaign);
+    } = useVenues(id, venues, loadCampaign, selectedNeighborhood);
 
     if (loading) {
         return (

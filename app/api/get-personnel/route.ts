@@ -3,8 +3,10 @@ import { supabase } from "@/lib/supabase";
 import { researchVenuePersonnel, researchVenuePhone } from "@/lib/gemini";
 
 export async function POST(req: NextRequest) {
+    let venueId: string | undefined;
     try {
-        const { venueId } = await req.json();
+        const body = await req.json();
+        venueId = body.venueId;
 
         if (!venueId) {
             return NextResponse.json({ error: "Missing venueId" }, { status: 400 });
@@ -13,20 +15,24 @@ export async function POST(req: NextRequest) {
         // 1. Get venue details
         const { data: venue, error: venueErr } = await supabase
             .from("venues")
-            .select("*, campaigns(*)")
+            .select("*")
             .eq("id", venueId)
             .single();
+
+        console.log(`[get-personnel] Fetching venue ${venueId}:`, venue ? "Found" : "Not Found", venueErr || "");
 
         if (venueErr || !venue) {
             return NextResponse.json({ error: "Venue not found" }, { status: 404 });
         }
 
         // 2. Get campaign for product description
-        const { data: campaign } = await supabase
+        const { data: campaign, error: campaignErr } = await supabase
             .from("campaigns")
             .select("product_description")
             .eq("id", venue.campaign_id)
             .single();
+
+        console.log(`[get-personnel] Fetching campaign ${venue.campaign_id}:`, campaign ? "Found" : "Not Found", campaignErr || "");
 
         const productDescription =
             campaign?.product_description || "our product/service";
@@ -70,13 +76,14 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // 5. Call Gemini to research personnel
+        console.log(`[get-personnel] Calling Gemini for "${venue.name}"...`);
         const result = await researchVenuePersonnel(
             venue.name,
             venue.address || "",
             venue.types || [],
             productDescription
         );
+        console.log(`[get-personnel] Gemini returned ${result.personnel.length} people.`);
 
         // 4. Save personnel to Supabase
         const insertedPersonnel = [];
@@ -114,9 +121,13 @@ export async function POST(req: NextRequest) {
             personnel: insertedPersonnel,
         });
     } catch (err: any) {
-        console.error("[get-personnel]", err);
+        console.error(`[get-personnel] Error researching venue ${venueId}:`, err);
         return NextResponse.json(
-            { error: "Failed to research personnel", details: err.message },
+            {
+                error: "Failed to research personnel",
+                details: err.message,
+                venueId
+            },
             { status: 500 }
         );
     }

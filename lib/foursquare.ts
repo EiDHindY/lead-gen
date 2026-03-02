@@ -192,7 +192,7 @@ export function mapVenueTypes(types: (string | any)[]): number[] {
     const ids: number[] = [];
     for (const t of types) {
         // Defensive: handle cases where venue_type is an object instead of a string
-        const raw = typeof t === "string" ? t : (t?.name || t?.venue_type || String(t || ""));
+        const raw = String(typeof t === "string" ? t : (t?.name ?? t?.venue_type ?? "")).trim();
         if (!raw) continue;
         const normalized = raw.toLowerCase().replace(/[\s-]/g, "_");
         const mappedIds = VENUE_CATEGORIES[normalized];
