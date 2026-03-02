@@ -46,6 +46,7 @@ interface VenueListProps {
     handleFileUploads: (files: FileList) => void;
     markAllCalled: () => void;
     researchAll: () => void;
+    stopResearch: () => void;
     resetSkippedVenues: () => void;
     researchProgress: number | null;
     exportCSV: () => void;
@@ -78,6 +79,7 @@ export function VenueList({
     importVenues,
     markAllCalled,
     researchAll,
+    stopResearch,
     resetSkippedVenues,
     researchProgress,
     exportCSV,
@@ -336,9 +338,18 @@ export function VenueList({
                 {researchProgress !== null && (
                     <div className="mb-6 p-4 rounded-xl bg-secondary/5 border border-secondary/20 animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="flex justify-between items-center mb-2">
-                            <div className="flex items-center gap-2">
-                                <span className="text-secondary animate-pulse-glow">🤖</span>
-                                <span className="text-sm font-medium text-foreground">AI Researching Venues...</span>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-secondary animate-pulse-glow">🤖</span>
+                                    <span className="text-sm font-medium text-foreground">AI Researching Venues...</span>
+                                </div>
+                                <button
+                                    onClick={stopResearch}
+                                    className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-danger/10 hover:bg-danger/20 text-danger border border-danger/20 rounded transition-all hover:scale-105 active:scale-95 flex items-center gap-1"
+                                >
+                                    <X className="w-2.5 h-2.5" />
+                                    Stop
+                                </button>
                             </div>
                             <span className="text-xs font-mono text-secondary">{researchProgress}%</span>
                         </div>

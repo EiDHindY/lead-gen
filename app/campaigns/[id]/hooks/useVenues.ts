@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase, type Venue } from "@/lib/supabase";
 
 export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () => Promise<void>, selectedNeighborhood: string | null) {
@@ -18,6 +18,8 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
     const [notionExportProgress, setNotionExportProgress] = useState<{ current: number; total: number } | null>(null);
 
     const [researchProgress, setResearchProgress] = useState<number | null>(null); // null means not researching all
+    const cancelRef = useRef(false);
+    const [isResearchCancelled, setIsResearchCancelled] = useState(false);
 
     async function searchVenuesInNeighborhood(neighborhoodId: string, ruleId?: string) {
         setSearchingVenues(neighborhoodId);
@@ -90,9 +92,15 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         if (unresearched.length === 0) return;
 
         setResearchProgress(0);
+        cancelRef.current = false;
         let completed = 0;
 
         for (const venue of unresearched) {
+            if (cancelRef.current) {
+                console.log("[useVenues] Research cancelled");
+                break;
+            }
+
             try {
                 await researchPersonnel(venue.id, true);
             } catch (err: any) {
@@ -108,6 +116,11 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
             }
         }
 
+        setResearchProgress(null);
+    }
+
+    function stopResearch() {
+        cancelRef.current = true;
         setResearchProgress(null);
     }
 
@@ -303,6 +316,7 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         searchVenuesInNeighborhood,
         researchPersonnel,
         researchAll,
+        stopResearch,
         markAllCalled,
         resetSkippedVenues,
         updateVenueStatus,
