@@ -27,7 +27,9 @@ import {
     Database,
     Settings,
     Trash2,
-    RotateCcw
+    RotateCcw,
+    Pencil,
+    Save
 } from "lucide-react";
 
 interface VenueListProps {
@@ -56,6 +58,7 @@ interface VenueListProps {
     researchPersonnel: (id: string) => void;
     researchingVenue: string | null;
     updateVenueStatus: (id: string, status: "called" | "skipped") => void;
+    updateVenuePhone: (id: string, phone: string) => void;
     deleteVenue: (id: string) => void;
     campaign: Campaign;
     onOpenNotionSettings: () => void;
@@ -89,6 +92,7 @@ export function VenueList({
     researchPersonnel,
     researchingVenue,
     updateVenueStatus,
+    updateVenuePhone,
     deleteVenue,
     handleFileUploads,
     campaign,
@@ -99,6 +103,9 @@ export function VenueList({
 }: VenueListProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [visibleCount, setVisibleCount] = useState(50);
+
+    const [editingPhoneVenueId, setEditingPhoneVenueId] = useState<string | null>(null);
+    const [phoneInput, setPhoneInput] = useState("");
 
     const filteredVenues = useMemo(() => {
         return venues.filter(
@@ -413,18 +420,62 @@ export function VenueList({
                                                             </td>
 
                                                             <td>
-                                                                {venue.phone ? (
-                                                                    <a
-                                                                        href={`tel:${venue.phone}`}
-                                                                        className="flex items-center gap-1.5 text-info hover:text-info/80 font-medium transition-colors"
-                                                                        onClick={(e) => e.stopPropagation()}
-                                                                    >
-                                                                        <Phone className="w-3.5 h-3.5" />
-                                                                        {venue.phone}
-                                                                    </a>
-                                                                ) : (
-                                                                    <span className="text-muted/50">—</span>
-                                                                )}
+                                                                <div className="flex items-center gap-2 group">
+                                                                    {editingPhoneVenueId === venue.id ? (
+                                                                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                                            <input
+                                                                                autoFocus
+                                                                                type="text"
+                                                                                value={phoneInput}
+                                                                                onChange={(e) => setPhoneInput(e.target.value)}
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') {
+                                                                                        updateVenuePhone(venue.id, phoneInput);
+                                                                                        setEditingPhoneVenueId(null);
+                                                                                    } else if (e.key === 'Escape') {
+                                                                                        setEditingPhoneVenueId(null);
+                                                                                    }
+                                                                                }}
+                                                                                className="bg-surface border border-primary/50 text-foreground text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary w-32"
+                                                                            />
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    updateVenuePhone(venue.id, phoneInput);
+                                                                                    setEditingPhoneVenueId(null);
+                                                                                }}
+                                                                                className="p-1 text-success hover:bg-success/10 rounded"
+                                                                            >
+                                                                                <Save className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <>
+                                                                            {venue.phone ? (
+                                                                                <a
+                                                                                    href={`tel:${venue.phone}`}
+                                                                                    className="flex items-center gap-1.5 text-info hover:text-info/80 font-medium transition-colors"
+                                                                                    onClick={(e) => e.stopPropagation()}
+                                                                                >
+                                                                                    <Phone className="w-3.5 h-3.5" />
+                                                                                    {venue.phone}
+                                                                                </a>
+                                                                            ) : (
+                                                                                <span className="text-muted/50">—</span>
+                                                                            )}
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setEditingPhoneVenueId(venue.id);
+                                                                                    setPhoneInput(venue.phone || "");
+                                                                                }}
+                                                                                className="p-1 opacity-0 group-hover:opacity-100 hover:bg-surface-hover rounded transition-all text-muted hover:text-foreground"
+                                                                                title="Edit phone number"
+                                                                            >
+                                                                                <Pencil className="w-3 h-3" />
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                             <td>
                                                                 {personnel.length > 0 ? (

@@ -142,6 +142,19 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         loadCampaign();
     }
 
+    async function updateVenuePhone(venueId: string, phone: string) {
+        const { error } = await supabase
+            .from("venues")
+            .update({ phone, status: "new" }) // Reset to "new" so it can be searched
+            .eq("id", venueId);
+
+        if (error) {
+            alert("Failed to update phone: " + error.message);
+        } else {
+            loadCampaign();
+        }
+    }
+
     async function resetSkippedVenues() {
         const filtered = selectedNeighborhood
             ? venues.filter((v) => v.neighborhood_id === selectedNeighborhood)
@@ -320,6 +333,7 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         markAllCalled,
         resetSkippedVenues,
         updateVenueStatus,
+        updateVenuePhone,
         deleteVenue,
         exportCSV,
         importVenues,

@@ -69,6 +69,7 @@ export default function CampaignDetailPage() {
         resetSkippedVenues,
         markAllCalled,
         updateVenueStatus,
+        updateVenuePhone,
         deleteVenue,
         exportCSV,
         importVenues,
@@ -158,6 +159,7 @@ export default function CampaignDetailPage() {
                     researchPersonnel={researchPersonnel}
                     researchingVenue={researchingVenue}
                     updateVenueStatus={updateVenueStatus}
+                    updateVenuePhone={updateVenuePhone}
                     handleFileUploads={handleFileUploads}
                     campaign={campaign}
                     onOpenNotionSettings={() => setShowNotionSettings(true)}
