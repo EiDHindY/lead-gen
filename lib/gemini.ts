@@ -7,10 +7,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 // Model fallback chain — each model has its OWN separate quota
 const GEMINI_MODELS = [
+    "gemini-1.5-pro",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-flash-8b",
-    "gemini-1.5-pro",
 ];
 
 // Track which models are depleted in this runtime session
@@ -22,10 +22,14 @@ interface PersonnelResult {
     phone?: string;
     email?: string;
     recommended_pitch: string;
+    confidence_score: number;
+    justification: string;
 }
 
 interface ResearchResult {
     personnel: PersonnelResult[];
+    matchesRules: boolean;
+    reason?: string;
     raw_response: string;
     model_used?: string;
 }
@@ -43,9 +47,10 @@ export async function researchVenuePersonnel(
     venueName: string,
     venueAddress: string,
     venueTypes: string[],
-    productDescription: string
+    productDescription: string,
+    aiSearchRules?: string
 ): Promise<ResearchResult> {
-    const prompt = buildPrompt(venueName, venueAddress, venueTypes, productDescription);
+    const prompt = buildPrompt(venueName, venueAddress, venueTypes, productDescription, aiSearchRules);
 
     // Rate limiting: wait 2 seconds before making a call
     await sleep(2000);
@@ -171,8 +176,13 @@ async function callGemini(
     const result = await model.generateContent(prompt);
     const text = result.response.text();
     console.log(`[AI] Raw response from ${modelName}:`, text);
-    const personnel = parsePersonnelFromResponse(text);
-    return { personnel, raw_response: text };
+    const researchData = parsePersonnelFromResponse(text);
+    return {
+        personnel: researchData.personnel,
+        matchesRules: researchData.matchesRules,
+        reason: researchData.reason,
+        raw_response: text
+    };
 }
 
 // ── Groq caller (OpenAI-compatible API) ──
@@ -214,8 +224,13 @@ async function callGroq(prompt: string): Promise<ResearchResult> {
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content || "";
     console.log(`[AI] Raw response from Groq:`, text);
-    const personnel = parsePersonnelFromResponse(text);
-    return { personnel, raw_response: text };
+    const researchData = parsePersonnelFromResponse(text);
+    return {
+        personnel: researchData.personnel,
+        matchesRules: researchData.matchesRules,
+        reason: researchData.reason,
+        raw_response: text
+    };
 }
 
 // ── Shared utilities ──
@@ -224,8 +239,13 @@ function buildPrompt(
     venueName: string,
     venueAddress: string,
     venueTypes: string[],
-    productDescription: string
+    productDescription: string,
+    aiSearchRules?: string
 ): string {
+    const rulesSection = aiSearchRules && aiSearchRules.trim()
+        ? `\nAI SEARCH RULES / CONSTRAINTS (MUST FOLLOW):\n${aiSearchRules}\n`
+        : "";
+
     return `You are a strict and highly precise lead generation research assistant. Your task is to research the following venue and find ALL key decision-makers (owner, general manager, director, operations manager, etc.).
 
 VENUE INFORMATION:
@@ -235,32 +255,44 @@ VENUE INFORMATION:
 
 PRODUCT BEING SOLD:
 ${productDescription}
-
+${rulesSection}
 CRITICAL INSTRUCTIONS TO PREVENT HALLUCINATIONS:
-1. ONLY return personnel if you are ABSOLUTELY CERTAIN they currently work at this specific location and you can discover their actual FULL NAMES (e.g., 'John Doe', 'Jane Smith').
-2. DO NOT guess, fabricate, or hallucinate names. It is completely unacceptable to return fake people.
-3. DO NOT return generic placeholders like 'General Manager' or 'Owner' if you cannot find a specific person's verifiable FULL NAME.
-4. If you cannot find any specific personnel with verifiable names for this exact venue, IT IS BETTER TO RETURN AN EMPTY LIST THAN TO GUESS. Return an empty list for the 'personnel' array.
-5. For each person with a verifiable name, generate a concise, professional pitch tailored to their specific role.
-6. Include any specific phone numbers or emails you can find, but do not hallucinate them if unknown.
+1. VALIDATE AGAINST AI SEARCH RULES: If AI SEARCH RULES are provided above, first verify if this venue strictly matches those rules. If it does not match, set "matchesRules" to false, explain why in "reason", and return an empty personnel list.
+2. VERIFIABLE SOURCES ONLY: Prioritize finding information from LinkedIn, official company websites, and recent (last 12-24 months) news or press releases.
+3. TEMPORAL CONTEXT: Ensure the person currently holds the position. If you find multiple people for the same role, prioritize the one with the most recent verifiable data.
+4. CONFIDENCE SCORING: For each person found, provide a "confidence_score" from 1 (lowest) to 10 (highest) and a brief "justification" (e.g., "Found on official 'About Us' page", "LinkedIn profile confirms current role").
+5. ONLY return personnel if you are ABSOLUTELY CERTAIN they currently work at this specific location and you can discover their actual FULL NAMES (e.g., 'John Doe', 'Jane Smith').
+6. DO NOT guess, fabricate, or hallucinate names. It is completely unacceptable to return fake people.
+7. DO NOT return generic placeholders like 'General Manager' or 'Owner' if you cannot find a specific person's verifiable FULL NAME.
+8. If you cannot find any specific personnel with verifiable names for this exact venue, IT IS BETTER TO RETURN AN EMPTY LIST THAN TO GUESS. Return an empty list for the 'personnel' array.
+9. For each person with a verifiable name, generate a concise, professional pitch tailored to their specific role.
+10. Include any specific phone numbers or emails you can find, but do not hallucinate them if unknown.
 
 Respond ONLY with valid JSON in this exact format:
 {
+  "matchesRules": true/false (defaults to true if no specific rules given),
+  "reason": "Explain why it matches or why it was rejected",
   "personnel": [
     {
       "name": "Full Name",
       "title": "Their Title/Role",
       "phone": "phone number or null",
       "email": "email or null",
-      "recommended_pitch": "A concise, personalized pitch for this person"
+      "recommended_pitch": "A concise, personalized pitch for this person",
+      "confidence_score": 1-10,
+      "justification": "Short justification for the score"
     }
   ]
 }
 
-If no verifiable people with specific names are found, return exactly: {"personnel": []}`;
+If the venue does not match the rules, or no verifiable people with specific names are found, return the appropriate "matchesRules" flag and an empty personnel list: {"matchesRules": false, "reason": "...", "personnel": []}`;
 }
 
-function parsePersonnelFromResponse(text: string): PersonnelResult[] {
+function parsePersonnelFromResponse(text: string): {
+    personnel: PersonnelResult[];
+    matchesRules: boolean;
+    reason: string;
+} {
     try {
         let jsonStr = text;
 
@@ -278,14 +310,18 @@ function parsePersonnelFromResponse(text: string): PersonnelResult[] {
 
         const parsed = JSON.parse(jsonStr);
 
-        if (parsed.personnel && Array.isArray(parsed.personnel)) {
-            return parsed.personnel
-                .map((p: Record<string, string>) => ({
+        return {
+            matchesRules: parsed.matchesRules ?? true,
+            reason: parsed.reason || "",
+            personnel: Array.isArray(parsed.personnel) ? parsed.personnel
+                .map((p: Record<string, any>) => ({
                     name: (p.name || "").trim(),
                     title: (p.title || "Unknown").trim(),
                     phone: p.phone || undefined,
                     email: p.email || undefined,
                     recommended_pitch: p.recommended_pitch || "",
+                    confidence_score: Number(p.confidence_score) || 0,
+                    justification: (p.justification || "No justification provided").trim(),
                 }))
                 .filter((p: any) => {
                     // Filter out "Unknown", generic placeholders, or cases where name is just the title
@@ -302,13 +338,15 @@ function parsePersonnelFromResponse(text: string): PersonnelResult[] {
                     if (genericRoles.includes(lowerName)) return false;
 
                     return true;
-                });
-        }
-
-        return [];
+                }) : []
+        };
     } catch (e: any) {
         console.error("[AI] Failed to parse response:", e.message, text.slice(0, 200));
-        return [];
+        return {
+            matchesRules: true,
+            reason: "Failed to parse AI response",
+            personnel: []
+        };
     }
 }
 

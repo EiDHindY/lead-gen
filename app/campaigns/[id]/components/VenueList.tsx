@@ -409,6 +409,11 @@ export function VenueList({
                                                                         <span className="badge badge-researched text-[10px]">
                                                                             {personnel.length} found
                                                                         </span>
+                                                                        {venue.model_used && (
+                                                                            <span className="text-[9px] text-muted-foreground/60 bg-muted/20 px-1 rounded-sm border border-muted/30" title="Model used for research">
+                                                                                {venue.model_used.includes('pro') ? '💎 Pro' : '⚡ Flash'}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
                                                                 ) : venue.status === "new" ? (
                                                                     <span className="text-muted/50 text-[10px] italic">

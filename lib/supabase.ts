@@ -59,6 +59,7 @@ export interface Venue {
   types: string[] | null;
   notion_exported: boolean | null;
   ai_research_raw: string | null;
+  model_used: string | null;
   status: "new" | "researched" | "called" | "skipped";
   created_at: string;
 }
@@ -71,5 +72,7 @@ export interface VenuePersonnel {
   phone: string | null;
   email: string | null;
   recommended_pitch: string | null;
+  confidence_score: number | null;
+  justification: string | null;
   created_at: string;
 }
