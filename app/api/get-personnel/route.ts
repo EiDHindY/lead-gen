@@ -129,37 +129,68 @@ export async function POST(req: NextRequest) {
         // 6. Save personnel to Supabase
         const insertedPersonnel = [];
         for (const person of result.personnel) {
+            const personData: any = {
+                venue_id: venueId,
+                name: person.name,
+                title: person.title || null,
+                phone: person.phone || null,
+                email: person.email || null,
+                recommended_pitch: person.recommended_pitch || null,
+            };
+
+            // Only add these if columns exist (we'll try it, if it errors we skip them)
+            if (person.confidence_score !== undefined) personData.confidence_score = person.confidence_score;
+            if (person.justification) personData.justification = person.justification;
+
             const { data, error } = await supabase
                 .from("venue_personnel")
-                .insert({
-                    venue_id: venueId,
-                    name: person.name,
-                    title: person.title || null,
-                    phone: person.phone || null,
-                    email: person.email || null,
-                    recommended_pitch: person.recommended_pitch || null,
-                    confidence_score: person.confidence_score || null,
-                    justification: person.justification || null,
-                })
-                .select()
-                .single();
+                .insert(personData)
+                .select();
 
-            if (!error && data) {
-                insertedPersonnel.push(data);
+            if (error) {
+                console.warn(`[get-personnel] Warning: Failed to insert person "${person.name}". This might be due to missing columns in Supabase. Error:`, error.message);
+
+                // Fallback: Try inserting without the new columns if the first try failed
+                if (error.message.includes("column") || error.code === "PGRST204") {
+                    delete personData.confidence_score;
+                    delete personData.justification;
+                    const { data: retryData, error: retryError } = await supabase
+                        .from("venue_personnel")
+                        .insert(personData)
+                        .select();
+
+                    if (!retryError && retryData?.[0]) {
+                        insertedPersonnel.push(retryData[0]);
+                    }
+                }
+            } else if (data?.[0]) {
+                insertedPersonnel.push(data[0]);
             }
         }
 
-        // 7. Update venue status and store raw AI response
         // 7. Update venue status
         const hasData = insertedPersonnel.length > 0 || !!venuePhone;
-        await supabase
+        const updateData: any = {
+            status: hasData ? "researched" : "skipped",
+            ai_research_raw: hasData ? result.raw_response : `No personnel or phone found. \n\nAI Response: ${result.raw_response}`,
+        };
+
+        // Try to add model_used, but ignore if column missing
+        if (result.model_used) updateData.model_used = result.model_used;
+
+        const { error: updateError } = await supabase
             .from("venues")
-            .update({
-                status: hasData ? "researched" : "skipped",
-                ai_research_raw: hasData ? result.raw_response : `No personnel or phone found. \n\nAI Response: ${result.raw_response}`,
-                model_used: result.model_used || "unknown",
-            })
+            .update(updateData)
             .eq("id", venueId);
+
+        if (updateError && (updateError.message.includes("column") || updateError.code === "PGRST204")) {
+            console.warn("[get-personnel] model_used column missing in venues table, retrying update without it...");
+            delete updateData.model_used;
+            await supabase
+                .from("venues")
+                .update(updateData)
+                .eq("id", venueId);
+        }
 
         return NextResponse.json({
             venue: venue.name,

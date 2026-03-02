@@ -68,24 +68,18 @@ export async function researchVenuePersonnel(
             result.model_used = modelName;
             return result;
         } catch (err: any) {
-            console.warn(`[AI] Error on Gemini ${modelName}:`, err.message);
+            console.warn(`[AI] Error on Gemini ${modelName}:`, err?.message || err);
 
-            // If it's a quota error, a 404 (model not found), or other model-specific transient issues, try next
-            const errMsg = err?.message || "";
-            const shouldTryNext = isQuotaError(err) ||
-                errMsg.includes("404") ||
-                errMsg.includes("not found") ||
-                errMsg.includes("not supported");
-
-            if (shouldTryNext || isSafetyError(err)) {
-                console.warn(`[AI] ${modelName} unavailable or blocked (Safety), trying next model...`);
-                if (isQuotaError(err)) depletedModels.add(modelName);
-                await sleep(1000);
-                continue;
+            if (isQuotaError(err)) {
+                console.warn(`[AI] Quota depleted for ${modelName}`);
+                depletedModels.add(modelName);
             }
 
-            // For other critical errors (like invalid API key), throw immediately
-            throw err;
+            // Always try next model for ALMOST ANY ERROR in the loop
+            // Fatal errors would likely kill all models anyway, but transient errors shouldn't stop the whole chain
+            console.warn(`[AI] ${modelName} failed, trying next Gemini model...`);
+            await sleep(1000);
+            continue;
         }
     }
 
@@ -355,15 +349,13 @@ function parsePersonnelFromResponse(text: string): {
 }
 
 function isSafetyError(err: unknown): boolean {
-    if (err instanceof Error) {
-        const msg = (err.message || "").toLowerCase();
-        return (
-            msg.includes("safety") ||
-            msg.includes("finish_reason_safety") ||
-            msg.includes("blocked")
-        );
-    }
-    return false;
+    const msg = String(err).toLowerCase();
+    return (
+        msg.includes("safety") ||
+        msg.includes("finish_reason_safety") ||
+        msg.includes("blocked") ||
+        msg.includes("candidate")
+    );
 }
 
 export function isQuotaError(err: unknown): boolean {
