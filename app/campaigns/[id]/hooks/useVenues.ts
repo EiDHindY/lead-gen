@@ -76,6 +76,8 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
                 if (!silent) alert(`Research for ${data.venue} aborted: ${data.message}`);
                 console.log(`[useVenues] Research for ${data.venue} aborted: ${data.message}`);
             }
+
+            return data.personnel || [];
         } catch (err: any) {
             if (!silent) alert("Failed to research personnel: " + (err.message || ""));
             throw err;
