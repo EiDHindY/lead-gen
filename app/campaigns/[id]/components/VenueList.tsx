@@ -494,6 +494,10 @@ export function VenueList({
                                                                     <span className="text-muted/50 text-[10px] italic">
                                                                         Not researched
                                                                     </span>
+                                                                ) : venue.status === "researched" ? (
+                                                                    <span className="text-muted/50 text-[10px]">
+                                                                        0 found
+                                                                    </span>
                                                                 ) : (
                                                                     <span className="text-muted/50">—</span>
                                                                 )}
@@ -699,10 +703,50 @@ export function VenueList({
                                                                                         ))}
                                                                                     </div>
                                                                                 ) : (
-                                                                                    <p className="text-sm text-muted">
-                                                                                        No personnel found yet. Click 🤖 to
-                                                                                        research.
-                                                                                    </p>
+                                                                                    <div className="space-y-4">
+                                                                                        <p className="text-sm text-muted">
+                                                                                            {venue.status === "new"
+                                                                                                ? "No personnel found yet. Click 🤖 to research."
+                                                                                                : "AI could not find any verifiable personnel for this venue."}
+                                                                                        </p>
+
+                                                                                        {venue.ai_research_raw && (
+                                                                                            <div className="p-3 rounded-lg bg-surface border border-border/50">
+                                                                                                <div className="text-[10px] uppercase tracking-wider text-muted mb-2 font-bold">AI Research Notes</div>
+                                                                                                <p className="text-xs text-muted leading-relaxed whitespace-pre-wrap">
+                                                                                                    {(() => {
+                                                                                                        try {
+                                                                                                            const raw = venue.ai_research_raw;
+                                                                                                            const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+                                                                                                            const jsonStr = jsonMatch ? jsonMatch[1].trim() : raw.trim();
+                                                                                                            const parsed = JSON.parse(jsonStr);
+                                                                                                            return parsed.reason || raw;
+                                                                                                        } catch {
+                                                                                                            return venue.ai_research_raw;
+                                                                                                        }
+                                                                                                    })()}
+                                                                                                </p>
+                                                                                            </div>
+                                                                                        )}
+
+                                                                                        {venue.status === "researched" && (
+                                                                                            <button
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    researchPersonnel(venue.id);
+                                                                                                }}
+                                                                                                disabled={researchingVenue === venue.id}
+                                                                                                className="text-xs text-primary hover:underline flex items-center gap-1 mt-2"
+                                                                                            >
+                                                                                                {researchingVenue === venue.id ? (
+                                                                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                                                                ) : (
+                                                                                                    <RotateCcw className="w-3 h-3" />
+                                                                                                )}
+                                                                                                Try Research Again
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </div>
                                                                                 )}
                                                                             </div>
                                                                         </div>
