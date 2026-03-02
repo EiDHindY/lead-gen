@@ -258,15 +258,17 @@ ${productDescription}
 ${rulesSection}
 CRITICAL INSTRUCTIONS TO PREVENT HALLUCINATIONS:
 1. VALIDATE AGAINST AI SEARCH RULES: If AI SEARCH RULES are provided above, first verify if this venue strictly matches those rules. If it does not match, set "matchesRules" to false, explain why in "reason", and return an empty personnel list.
-2. VERIFIABLE SOURCES ONLY: Prioritize finding information from LinkedIn, official company websites, and recent (last 12-24 months) news or press releases.
-3. TEMPORAL CONTEXT: Ensure the person currently holds the position. If you find multiple people for the same role, prioritize the one with the most recent verifiable data.
-4. CONFIDENCE SCORING: For each person found, provide a "confidence_score" from 1 (lowest) to 10 (highest) and a brief "justification" (e.g., "Found on official 'About Us' page", "LinkedIn profile confirms current role").
-5. ONLY return personnel if you are ABSOLUTELY CERTAIN they currently work at this specific location and you can discover their actual FULL NAMES (e.g., 'John Doe', 'Jane Smith').
-6. DO NOT guess, fabricate, or hallucinate names. It is completely unacceptable to return fake people.
-7. DO NOT return generic placeholders like 'General Manager' or 'Owner' if you cannot find a specific person's verifiable FULL NAME.
-8. If you cannot find any specific personnel with verifiable names for this exact venue, IT IS BETTER TO RETURN AN EMPTY LIST THAN TO GUESS. Return an empty list for the 'personnel' array.
-9. For each person with a verifiable name, generate a concise, professional pitch tailored to their specific role.
-10. Include any specific phone numbers or emails you can find, but do not hallucinate them if unknown.
+2. POPULARITY & REVIEW COUNT CHECK: If any rule mentions a "review count" or "popularity" limit (e.g., 'under 400 reviews'), you MUST evaluate this based on your knowledge of the venue. Large landmarks, major chain flagships, or famous viral spots should be skipped if they clearly exceed the limit.
+3. MODEL RELIABILITY & UNCERTAINTY: If you are unsure about a venue's popularity or compliance with a rule, DO NOT GUESS. If you have low certainty (Confidence Score < 5), state "Low certainty on rule compliance" in the 'justification' and 'reason' fields.
+4. VERIFIABLE SOURCES ONLY: Prioritize finding information from LinkedIn, official company websites, and recent (last 12-24 months) news or press releases.
+5. TEMPORAL CONTEXT: Ensure the person currently holds the position. If you find multiple people for the same role, prioritize the one with the most recent verifiable data.
+6. CONFIDENCE SCORING: For each person found, provide a "confidence_score" from 1 (lowest) to 10 (highest) and a brief "justification" (e.g., "Found on official 'About Us' page", "LinkedIn profile confirms current role").
+7. ONLY return personnel if you are ABSOLUTELY CERTAIN they currently work at this specific location and you can discover their actual FULL NAMES (e.g., 'John Doe', 'Jane Smith').
+8. DO NOT guess, fabricate, or hallucinate names. It is completely unacceptable to return fake people.
+9. DO NOT return generic placeholders like 'General Manager' or 'Owner' if you cannot find a specific person's verifiable FULL NAME.
+10. If you cannot find any specific personnel with verifiable names for this exact venue, IT IS BETTER TO RETURN AN EMPTY LIST THAN TO GUESS. Return an empty list for the 'personnel' array.
+11. For each person with a verifiable name, generate a concise, professional pitch tailored to their specific role.
+12. Include any specific phone numbers or emails you can find, but do not hallucinate them if unknown.
 
 Respond ONLY with valid JSON in this exact format:
 {
