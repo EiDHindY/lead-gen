@@ -20,74 +20,67 @@ export function useCampaignData(id: string) {
     const loadCampaign = useCallback(async () => {
         if (!campaign) setLoading(true);
 
-        const { data: campaignData } = await supabase
-            .from("campaigns")
-            .select("*")
-            .eq("id", id)
-            .single();
+        try {
+            // Fetch core campaign data in parallel to avoid "waterfall" loading
+            const [
+                { data: campaignData },
+                { data: rulesData },
+                { data: neighborhoodData },
+                { data: searchHistoryData },
+                { data: venueData }
+            ] = await Promise.all([
+                supabase.from("campaigns").select("*").eq("id", id).single(),
+                supabase.from("campaign_rules").select("*").eq("campaign_id", id),
+                supabase.from("neighborhoods").select("*").eq("campaign_id", id).order("created_at", { ascending: true }),
+                supabase.from("neighborhood_searches").select("*").eq("campaign_id", id),
+                supabase.from("venues").select("*").eq("campaign_id", id).order("created_at", { ascending: false }).limit(5000)
+            ]);
 
-        if (campaignData) setCampaign(campaignData);
+            if (campaignData) setCampaign(campaignData);
+            if (rulesData) setCampaignRules(rulesData as CampaignRule[]);
+            if (neighborhoodData) setNeighborhoods(neighborhoodData);
+            if (searchHistoryData) setCompletedSearches(searchHistoryData);
 
-        const { data: rulesData } = await supabase
-            .from("campaign_rules")
-            .select("*")
-            .eq("campaign_id", id);
+            if (venueData) {
+                setVenues(venueData);
 
-        if (rulesData) setCampaignRules(rulesData as CampaignRule[]);
-
-        const { data: neighborhoodData } = await supabase
-            .from("neighborhoods")
-            .select("*")
-            .eq("campaign_id", id)
-            .order("created_at", { ascending: true });
-
-        if (neighborhoodData) setNeighborhoods(neighborhoodData);
-
-        const { data: searchHistoryData } = await supabase
-            .from("neighborhood_searches")
-            .select("*")
-            .eq("campaign_id", id);
-
-        if (searchHistoryData) setCompletedSearches(searchHistoryData);
-
-        const { data: venueData } = await supabase
-            .from("venues")
-            .select("*")
-            .eq("campaign_id", id)
-            .order("created_at", { ascending: false })
-            .limit(5000);
-
-        if (venueData) {
-            setVenues(venueData);
-
-            // Load personnel for all venues (chunked to avoid URL length limits)
-            const venueIds = venueData.map((v) => v.id);
-            if (venueIds.length > 0) {
-                const CHUNK_SIZE = 200;
-                const allPersonnel: VenuePersonnel[] = [];
-
-                for (let i = 0; i < venueIds.length; i += CHUNK_SIZE) {
-                    const chunk = venueIds.slice(i, i + CHUNK_SIZE);
-                    const { data: personnelData } = await supabase
-                        .from("venue_personnel")
-                        .select("*")
-                        .in("venue_id", chunk);
-
-                    if (personnelData) {
-                        allPersonnel.push(...personnelData);
+                // Load personnel for all venues (chunked to avoid URL length limits)
+                const venueIds = venueData.map((v) => v.id);
+                if (venueIds.length > 0) {
+                    const CHUNK_SIZE = 200;
+                    const chunks: string[][] = [];
+                    for (let i = 0; i < venueIds.length; i += CHUNK_SIZE) {
+                        chunks.push(venueIds.slice(i, i + CHUNK_SIZE));
                     }
-                }
 
-                const grouped: Record<string, VenuePersonnel[]> = {};
-                for (const p of allPersonnel) {
-                    if (!grouped[p.venue_id]) grouped[p.venue_id] = [];
-                    grouped[p.venue_id].push(p);
+                    // Fetch personnel chunks in parallel (bounded by CHUNK_SIZE concurrency)
+                    const personnelChunks = await Promise.all(
+                        chunks.map(chunk =>
+                            supabase
+                                .from("venue_personnel")
+                                .select("*")
+                                .in("venue_id", chunk)
+                        )
+                    );
+
+                    const allPersonnel: VenuePersonnel[] = [];
+                    for (const { data } of personnelChunks) {
+                        if (data) allPersonnel.push(...data);
+                    }
+
+                    const grouped: Record<string, VenuePersonnel[]> = {};
+                    for (const p of allPersonnel) {
+                        if (!grouped[p.venue_id]) grouped[p.venue_id] = [];
+                        grouped[p.venue_id].push(p);
+                    }
+                    setPersonnelMap(grouped);
                 }
-                setPersonnelMap(grouped);
             }
+        } catch (error) {
+            console.error("Error loading campaign data:", error);
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     }, [id]);
 
     useEffect(() => {

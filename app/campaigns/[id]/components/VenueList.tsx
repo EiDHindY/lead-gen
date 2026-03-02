@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useMemo } from "react";
 import { type Venue, type VenuePersonnel, type Campaign } from "@/lib/supabase";
 import {
     ClipboardList,
@@ -95,12 +95,18 @@ export function VenueList({
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [visibleCount, setVisibleCount] = useState(50);
 
-    const filteredVenues = venues.filter(
-        v => !selectedNeighborhood || v.neighborhood_id === selectedNeighborhood
-    );
+    const filteredVenues = useMemo(() => {
+        return venues.filter(
+            v => !selectedNeighborhood || v.neighborhood_id === selectedNeighborhood
+        );
+    }, [venues, selectedNeighborhood]);
 
-    const displayedVenues = filteredVenues.slice(0, visibleCount);
-    const hasMore = filteredVenues.length > visibleCount;
+    const { displayedVenues, hasMore } = useMemo(() => {
+        return {
+            displayedVenues: filteredVenues.slice(0, visibleCount),
+            hasMore: filteredVenues.length > visibleCount
+        };
+    }, [filteredVenues, visibleCount]);
 
     return (
         <div className="lg:col-span-2">

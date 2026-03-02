@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { type Neighborhood, type CampaignRule } from "@/lib/supabase";
 import { Map, ChevronUp, ChevronDown, Search, Loader2, Trash2, X, Plus, Network, CheckSquare } from "lucide-react";
 import { SubAreaResult } from "@/app/api/fetch-sub-areas/route";
@@ -91,12 +91,16 @@ export function NeighborhoodPanel({
         }
     }
 
-    const filteredNeighborhoods = neighborhoods.filter((nb) => {
-        if (statusFilter === "all") return true;
-        return nb.status === statusFilter;
-    });
+    const filteredNeighborhoods = useMemo(() => {
+        return neighborhoods.filter((nb) => {
+            if (statusFilter === "all") return true;
+            return nb.status === statusFilter;
+        });
+    }, [neighborhoods, statusFilter]);
 
-    const isAllSelected = filteredNeighborhoods.length > 0 && filteredNeighborhoods.every(nb => selectedIds.has(nb.id));
+    const isAllSelected = useMemo(() => {
+        return filteredNeighborhoods.length > 0 && filteredNeighborhoods.every(nb => selectedIds.has(nb.id));
+    }, [filteredNeighborhoods, selectedIds]);
 
     function toggleSelection(id: string) {
         const next = new Set(selectedIds);
