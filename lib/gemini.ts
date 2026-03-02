@@ -92,8 +92,10 @@ export async function researchVenuePersonnel(
         return result;
     } catch (err: any) {
         if (isQuotaError(err)) {
+            // Check if we even TRIED Gemini models (sometimes only flash is available)
+            const geminiTriedCount = GEMINI_MODELS.length - depletedModels.size;
             throw new Error(
-                "All AI providers exhausted (Gemini + Groq). Please wait for quota reset."
+                `All AI providers exhausted. Gemini (${geminiTriedCount} active) + Groq are both hitting rate limits. Please wait 1-2 minutes and try again.`
             );
         }
         throw err;
@@ -406,16 +408,16 @@ function isSafetyError(err: unknown): boolean {
 }
 
 export function isQuotaError(err: unknown): boolean {
-    if (err instanceof Error) {
-        const msg = err.message || "";
-        return (
-            msg.includes("429") ||
-            msg.includes("RESOURCE_EXHAUSTED") ||
-            msg.includes("quota") ||
-            msg.includes("rate_limit")
-        );
-    }
-    return false;
+    const msg = String(err).toLowerCase();
+    // 429 is the standard code for rate limiting
+    // RESOURCE_EXHAUSTED is the specific gRPC code for Gemini
+    return (
+        msg.includes("429") ||
+        msg.includes("resource_exhausted") ||
+        msg.includes("quota") ||
+        msg.includes("rate_limit") ||
+        msg.includes("limit_reached")
+    );
 }
 
 /**
