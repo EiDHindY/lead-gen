@@ -69,8 +69,9 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
             const data = await res.json();
 
             if (!res.ok) {
-                if (!silent) alert("Research failed: " + (data.error || "Unknown error"));
-                throw new Error(data.error || "Unknown error");
+                const errorMsg = data.details ? `${data.error}: ${data.details}` : (data.error || "Unknown error");
+                if (!silent) alert("Research failed: " + errorMsg);
+                throw new Error(errorMsg);
             } else if (data.aborted) {
                 if (!silent) alert(`Research for ${data.venue} aborted: ${data.message}`);
                 console.log(`[useVenues] Research for ${data.venue} aborted: ${data.message}`);

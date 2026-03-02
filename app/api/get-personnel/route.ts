@@ -104,7 +104,8 @@ export async function POST(req: NextRequest) {
             venue.address || "",
             venue.types || [],
             productDescription,
-            aiSearchRules
+            aiSearchRules,
+            venuePhone
         );
 
         // 5. CHECK AI FILTERING RESULTS

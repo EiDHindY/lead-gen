@@ -48,9 +48,10 @@ export async function researchVenuePersonnel(
     venueAddress: string,
     venueTypes: string[],
     productDescription: string,
-    aiSearchRules?: string
+    aiSearchRules?: string | null,
+    venuePhone?: string | null
 ): Promise<ResearchResult> {
-    const prompt = buildPrompt(venueName, venueAddress, venueTypes, productDescription, aiSearchRules);
+    const prompt = buildPrompt(venueName, venueAddress, venueTypes, productDescription, aiSearchRules, venuePhone);
 
     // Rate limiting: wait 2 seconds before making a call
     await sleep(2000);
@@ -276,11 +277,14 @@ function buildPrompt(
     venueAddress: string,
     venueTypes: string[],
     productDescription: string,
-    aiSearchRules?: string
+    aiSearchRules?: string | null,
+    venuePhone?: string | null
 ): string {
-    const rulesSection = aiSearchRules && aiSearchRules.trim()
+    const rulesSection = aiSearchRules && typeof aiSearchRules === 'string' && aiSearchRules.trim()
         ? `\nAI SEARCH RULES / CONSTRAINTS (MUST FOLLOW):\n${aiSearchRules}\n`
         : "";
+
+    const phoneSection = venuePhone ? `- Phone: ${venuePhone}\n` : "";
 
     return `You are a strict and highly precise lead generation research assistant. Your task is to research the following venue and find ALL key decision-makers (owner, general manager, director, operations manager, etc.).
 
@@ -288,6 +292,7 @@ VENUE INFORMATION:
 - Name: ${venueName}
 - Address: ${venueAddress}
 - Type: ${venueTypes.join(", ")}
+${phoneSection}
 
 PRODUCT BEING SOLD:
 ${productDescription}
