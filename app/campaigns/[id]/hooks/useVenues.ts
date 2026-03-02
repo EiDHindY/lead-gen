@@ -129,6 +129,28 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         loadCampaign();
     }
 
+    async function resetSkippedVenues() {
+        const filtered = selectedNeighborhood
+            ? venues.filter((v) => v.neighborhood_id === selectedNeighborhood)
+            : venues;
+        const skipped = filtered.filter((v) => v.status === "skipped");
+        if (skipped.length === 0) return;
+
+        if (!confirm(`Reset ${skipped.length} skipped venues back to "new"? This will let you re-research them.`)) return;
+
+        const ids = skipped.map((v) => v.id);
+        const { error } = await supabase
+            .from("venues")
+            .update({ status: "new", ai_research_raw: null })
+            .in("id", ids);
+
+        if (error) {
+            alert("Failed to reset venues: " + error.message);
+        } else {
+            loadCampaign();
+        }
+    }
+
     async function deleteVenue(venueId: string) {
         if (!confirm("Are you sure you want to permanently delete this venue? This will also delete all researched personnel for it.")) return;
 
@@ -282,6 +304,7 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         researchPersonnel,
         researchAll,
         markAllCalled,
+        resetSkippedVenues,
         updateVenueStatus,
         deleteVenue,
         exportCSV,

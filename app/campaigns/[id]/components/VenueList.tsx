@@ -26,7 +26,8 @@ import {
     Loader2,
     Database,
     Settings,
-    Trash2
+    Trash2,
+    RotateCcw
 } from "lucide-react";
 
 interface VenueListProps {
@@ -45,6 +46,7 @@ interface VenueListProps {
     handleFileUploads: (files: FileList) => void;
     markAllCalled: () => void;
     researchAll: () => void;
+    resetSkippedVenues: () => void;
     researchProgress: number | null;
     exportCSV: () => void;
     personnelMap: Record<string, VenuePersonnel[]>;
@@ -76,6 +78,7 @@ export function VenueList({
     importVenues,
     markAllCalled,
     researchAll,
+    resetSkippedVenues,
     researchProgress,
     exportCSV,
     personnelMap,
@@ -144,6 +147,16 @@ export function VenueList({
                             >
                                 <CheckCircle2 className="w-4 h-4" />
                                 <span className="hidden sm:inline">Mark All Called</span>
+                            </button>
+                        )}
+                        {venues.length > 0 && venues.some(v => v.status === 'skipped') && (
+                            <button
+                                onClick={resetSkippedVenues}
+                                className="px-3 py-2 text-xs font-medium bg-surface hover:bg-surface-hover border border-border rounded-lg text-muted hover:text-foreground transition-colors flex items-center gap-2"
+                                title="Reset all skipped venues back to 'new' for re-research"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Reset Skipped</span>
                             </button>
                         )}
                         {venues.some((v) => v.status === "new") && (

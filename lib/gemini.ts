@@ -257,17 +257,19 @@ PRODUCT BEING SOLD:
 ${productDescription}
 ${rulesSection}
 CRITICAL INSTRUCTIONS TO PREVENT HALLUCINATIONS:
-1. VALIDATE AGAINST AI SEARCH RULES: If AI SEARCH RULES are provided above, first verify if this venue strictly matches those rules. If it does not match, set "matchesRules" to false, explain why in "reason", and return an empty personnel list.
-2. POPULARITY & REVIEW COUNT CHECK: If any rule mentions a "review count" or "popularity" limit (e.g., 'under 400 reviews'), you MUST evaluate this based on your knowledge of the venue. Large landmarks, major chain flagships, or famous viral spots should be skipped if they clearly exceed the limit.
-3. MODEL RELIABILITY & UNCERTAINTY: If you are unsure about a venue's popularity or compliance with a rule, DO NOT GUESS. If you have low certainty (Confidence Score < 5), state "Low certainty on rule compliance" in the 'justification' and 'reason' fields.
-4. VERIFIABLE SOURCES ONLY: Prioritize finding information from LinkedIn, official company websites, and recent (last 12-24 months) news or press releases.
-5. TEMPORAL CONTEXT: Ensure the person currently holds the position. If you find multiple people for the same role, prioritize the one with the most recent verifiable data.
-6. CONFIDENCE SCORING: For each person found, provide a "confidence_score" from 1 (lowest) to 10 (highest) and a brief "justification" (e.g., "Found on official 'About Us' page", "LinkedIn profile confirms current role").
-7. ONLY return personnel if you are ABSOLUTELY CERTAIN they currently work at this specific location and you can discover their actual FULL NAMES (e.g., 'John Doe', 'Jane Smith').
-8. DO NOT guess, fabricate, or hallucinate names. It is completely unacceptable to return fake people.
-9. DO NOT return generic placeholders like 'General Manager' or 'Owner' if you cannot find a specific person's verifiable FULL NAME.
-10. If you cannot find any specific personnel with verifiable names for this exact venue, IT IS BETTER TO RETURN AN EMPTY LIST THAN TO GUESS. Return an empty list for the 'personnel' array.
-11. For each person with a verifiable name, generate a concise, professional pitch tailored to their specific role.
+1. VALIDATE AGAINST AI SEARCH RULES: If AI SEARCH RULES are provided above, first verify if this venue strictly matches those rules. 
+2. OPTIMISTIC COMPLIANCE (POPULARITY): If a rule mentions a "review count" or "popularity" limit (e.g., 'under 400 reviews'):
+   - IF CERTAIN it is a major landmark, large chain flagship, or viral tourist trap that FAR EXCEEDS the limit: set "matchesRules" to false and return an empty personnel list.
+   - IF IT IS A REGULAR LOCAL BUSINESS or you are UNCERTAIN of the exact count: set "matchesRules" to true and PROCEED with research. Note the lack of exact data in the 'reason' but DO NOT skip valid local leads.
+3. RESEARCH OVER SKIPPING: For small local venues, it is ALWAYS preferred to find the owners even if you are not 100% sure about the exact review count.
+4. MODEL RELIABILITY & UNCERTAINTY: Use the confidence score to reflect your certainty. If you have low data (Confidence Score < 6), still provide the leads but mention "Low certainty" in the 'justification'.
+5. VERIFIABLE SOURCES ONLY: Prioritize finding information from LinkedIn, official company websites, and recent (last 12-24 months) news or press releases.
+6. TEMPORAL CONTEXT: Ensure the person currently holds the position. If you find multiple people for the same role, prioritize the one with the most recent verifiable data.
+7. CONFIDENCE SCORING: For each person found, provide a "confidence_score" from 1 (lowest) to 10 (highest) and a brief "justification" (e.g., "Found on official 'About Us' page", "LinkedIn profile confirms current role").
+8. ONLY return personnel if you are ABSOLUTELY CERTAIN they currently work at this specific location and you can discover their actual FULL NAMES (e.g., 'John Doe', 'Jane Smith').
+9. DO NOT guess, fabricate, or hallucinate names. It is completely unacceptable to return fake people.
+10. DO NOT return generic placeholders like 'General Manager' or 'Owner' if you cannot find a specific person's verifiable FULL NAME.
+11. If you cannot find any specific personnel with verifiable names for this exact venue, return an empty personnel list.
 12. Include any specific phone numbers or emails you can find, but do not hallucinate them if unknown.
 
 Respond ONLY with valid JSON in this exact format:

@@ -65,6 +65,7 @@ export default function CampaignDetailPage() {
         searchVenuesInNeighborhood,
         researchPersonnel,
         researchAll,
+        resetSkippedVenues,
         markAllCalled,
         updateVenueStatus,
         deleteVenue,
@@ -146,6 +147,7 @@ export default function CampaignDetailPage() {
                     importVenues={importVenues}
                     markAllCalled={markAllCalled}
                     researchAll={researchAll}
+                    resetSkippedVenues={resetSkippedVenues}
                     researchProgress={researchProgress}
                     exportCSV={exportCSV}
                     personnelMap={personnelMap}
