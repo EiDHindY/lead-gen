@@ -120,24 +120,57 @@ export async function researchVenuePhone(
 
     // Try Gemini first
     for (const modelName of GEMINI_MODELS) {
-        if (depletedModels.has(modelName)) continue;
+        if (depletedModels.has(modelName)) {
+            console.log(`[AI-Phone] Skipping depleted: ${modelName}`);
+            continue;
+        }
+
         try {
+            console.log(`[AI-Phone] Trying ${modelName} for "${venueName}"`);
+            // Add a small delay for phone-specific search as well to avoid rapid-fire hits
+            await sleep(1000);
+
             const model = genAI.getGenerativeModel({ model: modelName });
             const result = await model.generateContent(prompt);
             const text = result.response.text().trim();
-            if (text === "NONE") return null;
+
+            console.log(`[AI-Phone] Raw response from ${modelName}:`, text);
+
+            if (text === "NONE" || text.toLowerCase().includes("none")) {
+                console.log(`[AI-Phone] ${modelName} returned NONE for "${venueName}". Checking next model...`);
+                continue; // Try next model to be sure
+            }
+
             // Basic phone format check (digits and special chars)
-            if (/[\d\+\-\s\(\)]{7,}/.test(text)) return text;
-            return null;
+            if (/[\d\+\-\s\(\)]{7,}/.test(text)) {
+                // Return cleaned number (just digits and +) if it's too messy? 
+                // No, let's keep the AI format for now but at least we found something.
+                return text;
+            }
+
+            console.warn(`[AI-Phone] ${modelName} returned invalid format: "${text}"`);
+            continue;
         } catch (err: any) {
+            console.warn(`[AI-Phone] Error on ${modelName}:`, err?.message || err);
+
+            if (isQuotaError(err)) {
+                depletedModels.add(modelName);
+            }
+
+            if (isSafetyError(err)) {
+                console.warn(`[AI-Phone] Safety block on ${modelName}`);
+            }
+
             continue;
         }
     }
 
     // Fallback to Groq
+    console.log(`[AI-Phone] All Gemini models failed for "${venueName}". Trying Groq fallback...`);
     try {
         const apiKey = process.env.GROQ_API_KEY;
         if (!apiKey) return null;
+
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -150,11 +183,20 @@ export async function researchVenuePhone(
                 temperature: 0.1,
             }),
         });
-        if (!res.ok) return null;
+
+        if (!res.ok) {
+            console.warn(`[AI-Phone] Groq error: ${res.status}`);
+            return null;
+        }
+
         const data = await res.json();
         const text = (data.choices?.[0]?.message?.content || "").trim();
-        return text === "NONE" ? null : text;
+        console.log(`[AI-Phone] Raw response from Groq:`, text);
+
+        if (text === "NONE" || text.toLowerCase().includes("none")) return null;
+        return text;
     } catch (err) {
+        console.error("[AI-Phone] Groq fallback failed:", err);
         return null;
     }
 }
