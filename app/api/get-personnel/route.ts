@@ -77,9 +77,23 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 4. LOG if no phone found (informative, but no longer aborts)
+        // 4. ABORT if no phone found (user's request: save quota)
         if (!venuePhone) {
-            console.log(`[get-personnel] No phone found for "${venue.name}". Searching for personnel anyway...`);
+            console.log(`[get-personnel] Aborting research: No phone found for "${venue.name}"`);
+            await supabase
+                .from("venues")
+                .update({
+                    status: "skipped",
+                    ai_research_raw: "Research aborted: No verifiable phone number found for this venue."
+                })
+                .eq("id", venueId);
+
+            return NextResponse.json({
+                venue: venue.name,
+                aborted: true,
+                reason: "no_phone",
+                message: "No phone number found. Research aborted to save quota."
+            });
         }
 
         console.log(`[get-personnel] Calling Gemini for "${venue.name}"...`);
