@@ -15,6 +15,7 @@ interface NeighborhoodPanelProps {
         lng: number;
         boundingbox: string[];
         geojson: { type: string; coordinates: unknown };
+        type?: string;
     }>;
     setAreaResults: (results: any[]) => void;
     handleAreaSearch: () => void;
@@ -26,11 +27,12 @@ interface NeighborhoodPanelProps {
         lng: number;
         boundingbox: string[];
         geojson: { type: string; coordinates: unknown };
+        type?: string;
     }) => void;
     neighborhoods: Neighborhood[];
     selectedNeighborhood: string | null;
     setSelectedNeighborhood: (id: string | null) => void;
-    searchVenuesInNeighborhood: (id: string, ruleId?: string) => void;
+    searchVenuesInNeighborhood: (id: string, ruleId?: string, customType?: string, allRules?: any[]) => void;
     searchingVenues: string | null;
     deleteNeighborhood: (id: string) => void;
     deleteBulkNeighborhoods: (ids: string[]) => void;
@@ -42,6 +44,8 @@ interface NeighborhoodPanelProps {
     addBulkNeighborhoods: (areas: SubAreaResult[]) => void;
     addingBulk: boolean;
     discardStagedAreas: () => void;
+    researchProgress: number | null;
+    researchMessage: string | null;
 }
 
 export function NeighborhoodPanel({
@@ -66,7 +70,9 @@ export function NeighborhoodPanel({
     fetchSubAreas,
     addBulkNeighborhoods,
     addingBulk,
-    discardStagedAreas
+    discardStagedAreas,
+    researchProgress,
+    researchMessage
 }: NeighborhoodPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [selectedRules, setSelectedRules] = useState<Record<string, string>>({});
@@ -176,9 +182,19 @@ export function NeighborhoodPanel({
                                                 key={area.osmId}
                                                 className="w-full text-left p-3 rounded-xl bg-background hover:bg-surface-hover border border-border text-xs transition-all flex items-center justify-between group"
                                             >
-                                                <span className="font-medium text-foreground truncate max-w-[200px]">
-                                                    {area.name}
-                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium text-foreground truncate">
+                                                            {area.name}
+                                                        </span>
+                                                        <span className="px-1.5 py-0.5 rounded-md bg-white/5 text-[9px] text-muted uppercase font-bold tracking-wider border border-white/10 shrink-0">
+                                                            {area.type || "Area"}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[10px] text-muted truncate mt-0.5" title={area.displayName}>
+                                                        {area.displayName}
+                                                    </div>
+                                                </div>
                                                 <div className="flex items-center gap-1">
                                                     <button
                                                         onClick={(e) => {
@@ -405,16 +421,30 @@ export function NeighborhoodPanel({
                                                     </span>
                                                 </div>
                                             )}
+                                            {searchingVenues === nb.id && researchMessage && (
+                                                <div className="mt-2 w-full max-w-[250px]">
+                                                    <div className="flex items-center justify-between text-[10px] text-muted mb-1">
+                                                        <span className="truncate pr-2">{researchMessage}</span>
+                                                        <span>{Math.round(researchProgress || 0)}%</span>
+                                                    </div>
+                                                    <div className="w-full h-1 bg-surface-hover rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-primary transition-all duration-300"
+                                                            style={{ width: `${researchProgress || 0}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex gap-2 ml-3 shrink-0">
                                             <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
                                                 {campaignRules.length > 0 && (
                                                     <select
-                                                        value={selectedRules[nb.id] || ""}
+                                                        value={selectedRules[nb.id] || "all"}
                                                         onChange={(e) => setSelectedRules(prev => ({ ...prev, [nb.id]: e.target.value }))}
                                                         className="px-2 py-1 text-xs rounded border border-border bg-background text-foreground"
                                                     >
-                                                        <option value="" disabled>Select Type...</option>
+                                                        <option value="all">All Venue Types</option>
                                                         {campaignRules.map(rule => {
                                                             const isCompleted = completedSearches.some(s => s.neighborhood_id === nb.id && s.rule_id === rule.id);
                                                             return (
@@ -428,12 +458,8 @@ export function NeighborhoodPanel({
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        const ruleToSearch = selectedRules[nb.id] || (campaignRules.length > 0 ? campaignRules[0].id : undefined);
-                                                        if (!ruleToSearch && campaignRules.length > 0) {
-                                                            alert("Please select a venue type to search");
-                                                            return;
-                                                        }
-                                                        searchVenuesInNeighborhood(nb.id, ruleToSearch);
+                                                        const ruleToSearch = selectedRules[nb.id] || "all";
+                                                        searchVenuesInNeighborhood(nb.id, ruleToSearch === "all" ? undefined : ruleToSearch, undefined, ruleToSearch === "all" ? campaignRules : undefined);
                                                     }}
                                                     disabled={searchingVenues === nb.id || campaignRules.length === 0}
                                                     className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors disabled:opacity-50"

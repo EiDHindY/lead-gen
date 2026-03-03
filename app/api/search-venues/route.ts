@@ -8,9 +8,11 @@ import {
     getPhone,
     getWebsite,
     getOpeningHours,
+    isGenericName,
     type GeoapifyVenue,
 } from "@/lib/geoapify";
-import { getBoundingBoxCenter, getBoundingBoxRadius } from "@/lib/nominatim";
+import { getBoundingBoxCenter, getBoundingBoxRadius, isPointInGeoJSONPolygon } from "@/lib/nominatim";
+import { isActivityType, searchActivity } from "@/lib/search-router";
 
 // Common chain keywords for exclude_chains filter
 const CHAIN_KEYWORDS = [
@@ -111,6 +113,7 @@ export async function POST(req: NextRequest) {
         let totalFound = 0;
         let totalFiltered = 0;
         let totalDupsSkipped = 0;
+        const debugLogs: string[] = [];
 
         // Get existing place_ids for dedup
         const existingIds = new Set<string>();
@@ -134,6 +137,113 @@ export async function POST(req: NextRequest) {
                 ? rule.venue_type
                 : String((rule.venue_type as any)?.name ?? (rule.venue_type as any)?.venue_type ?? rule.venue_type ?? "");
 
+            // ═══════════════════════════════════════════════════
+            // HYBRID ROUTING: Activity vs Standard venue type
+            // ═══════════════════════════════════════════════════
+            if (isActivityType(venueTypeStr)) {
+                // ── ACTIVITY SEARCH: Foursquare + Overpass in parallel ──
+                console.log(`[search-venues] 🎯 ACTIVITY detected: "${venueTypeStr}" → routing to Foursquare + Overpass`);
+
+                const activityResult = await searchActivity(
+                    centerLat,
+                    centerLng,
+                    radius,
+                    venueTypeStr
+                );
+
+                const stats = `[Activity] FSQ=${activityResult.sources.foursquare}, Overpass=${activityResult.sources.overpass}, Before Dedup=${activityResult.sources.beforeDedup}`;
+                debugLogs.push(`Rule "${venueTypeStr}": ${stats}`);
+                console.log(`[search-venues] ${stats}`);
+
+                totalFound += activityResult.sources.beforeDedup;
+
+                const activityAudit = { outOfBounds: 0, chain: 0, keyword: 0, isDup: 0 };
+
+                // Apply filters (simplified — no accuracy filter needed since Foursquare does semantic search)
+                const filtered = activityResult.venues.filter((v) => {
+                    // Point-in-Polygon check
+                    if (neighborhood.boundary_polygon?.geojson && v.lon && v.lat) {
+                        if (!isPointInGeoJSONPolygon([v.lon, v.lat], neighborhood.boundary_polygon.geojson)) {
+                            activityAudit.outOfBounds++;
+                            return false;
+                        }
+                    }
+
+                    // Chain exclusion
+                    if (rule.exclude_chains) {
+                        const nameLower = String(v.name || "").toLowerCase();
+                        if (CHAIN_KEYWORDS.some((chain) => nameLower.includes(chain))) {
+                            activityAudit.chain++;
+                            return false;
+                        }
+                    }
+
+                    // Keyword exclusion
+                    if (rule.exclude_keywords && rule.exclude_keywords.length > 0) {
+                        const nameLower = String(v.name || "").toLowerCase();
+                        const addressLower = String(v.address || "").toLowerCase();
+                        if (
+                            rule.exclude_keywords.some((kw) => {
+                                const kwLower = String(kw || "").toLowerCase();
+                                return nameLower.includes(kwLower) || addressLower.includes(kwLower);
+                            })
+                        ) {
+                            activityAudit.keyword++;
+                            return false;
+                        }
+                    }
+
+                    console.log(`[search-venues] PASSED (activity): ${v.name} [${v.source}]`);
+                    return true;
+                });
+
+                const activityAuditStr = `Audit: Bounds=${activityAudit.outOfBounds}, Chain=${activityAudit.chain}, Keyword=${activityAudit.keyword}, Dup=${activityAudit.isDup}`;
+                debugLogs.push(`Rule "${venueTypeStr}" Result: ${filtered.length} passed. ${activityAuditStr}`);
+                console.log(`[search-venues] Activity Audit for "${venueTypeStr}":`, JSON.stringify(activityAudit, null, 2));
+                totalFiltered += filtered.length;
+
+                // Dedup against existing DB venues by ID
+                const newVenues = filtered.filter((v) => !existingIds.has(v.id));
+                totalDupsSkipped += filtered.length - newVenues.length;
+
+                // Save activity venues to Supabase
+                for (const v of newVenues) {
+                    const openingDays = v.opening_hours ? countOpeningDays(v.opening_hours) : null;
+                    const venueData = {
+                        campaign_id: campaignId,
+                        neighborhood_id: neighborhoodId,
+                        fsq_id: v.id,
+                        name: v.name || "Unnamed Venue",
+                        address: v.address || "",
+                        latitude: v.lat || 0,
+                        longitude: v.lon || 0,
+                        rating: v.rating,
+                        total_ratings: v.total_ratings,
+                        opening_hours: v.opening_hours ? { display: v.opening_hours } : null,
+                        opening_days_count: openingDays,
+                        phone: v.phone,
+                        website: v.website,
+                        google_maps_url: generateMapsUrl(v.lat, v.lon, v.name, v.address || undefined),
+                        types: v.categories || [],
+                        status: "new" as const,
+                    };
+
+                    const { data, error } = await supabase
+                        .from("venues")
+                        .insert(venueData)
+                        .select()
+                        .single();
+
+                    if (!error && data) {
+                        allNewVenues.push(data);
+                        existingIds.add(v.id);
+                    }
+                }
+
+                continue; // Skip the Geoapify flow below
+            }
+
+            // ── STANDARD SEARCH: Geoapify (existing flow) ──
             // Map venue type to Geoapify categories
             const categories = mapVenueTypes([venueTypeStr]);
 
@@ -154,8 +264,10 @@ export async function POST(req: NextRequest) {
                     offset
                 );
 
+                console.log(`[search-venues] Geoapify results for "${venueTypeStr}" (offset ${offset}): Found ${result.venues.length}. (Radius: ${Math.round(radius)}m)`);
+
                 if (result.venues.length > 0 && typeVenues.length === 0) {
-                    console.log(`[search-venues] Sample venue:`, JSON.stringify(result.venues[0], null, 2));
+                    // console.log(`[search-venues] Sample venue:`, JSON.stringify(result.venues[0], null, 2));
                 }
 
                 typeVenues.push(...result.venues);
@@ -165,14 +277,41 @@ export async function POST(req: NextRequest) {
             } while (typeVenues.length < 300);
 
             totalFound += typeVenues.length;
-            console.log(`[search-venues] Rule ${venueTypeStr}: Found ${typeVenues.length} venues.`);
+            const stats = `[Standard] Geoapify results for "${venueTypeStr}": ${typeVenues.length}`;
+            debugLogs.push(`Rule "${venueTypeStr}": ${stats}`);
+            console.log(`[search-venues] ${stats}`);
+
+            const rejectionAudit = {
+                outOfBounds: 0,
+                generic: 0,
+                chain: 0,
+                keyword: 0,
+                openDays: 0,
+                accuracy: 0,
+                cafeExclusion: 0,
+                isDup: 0
+            };
 
             // Apply filters
             const filtered = typeVenues.filter((v) => {
+                // Strict Point-in-Polygon check first
+                if (neighborhood.boundary_polygon?.geojson && v.lon && v.lat) {
+                    if (!isPointInGeoJSONPolygon([v.lon, v.lat], neighborhood.boundary_polygon.geojson)) {
+                        rejectionAudit.outOfBounds++;
+                        return false;
+                    }
+                }
+
+                // Rating filter
+                if (rule.min_rating > 0 && (v as any).rating !== undefined) {
+                    if ((v as any).rating < rule.min_rating) return false;
+                }
+
                 // Chain exclusion
                 if (rule.exclude_chains) {
                     const nameLower = String(v.name || "").toLowerCase();
                     if (CHAIN_KEYWORDS.some((chain) => nameLower.includes(chain))) {
+                        rejectionAudit.chain++;
                         return false;
                     }
                 }
@@ -192,7 +331,7 @@ export async function POST(req: NextRequest) {
                             }
                         )
                     ) {
-                        console.log(`[search-venues] REJECTED (Keyword): ${v.name}`);
+                        rejectionAudit.keyword++;
                         return false;
                     }
                 }
@@ -202,6 +341,69 @@ export async function POST(req: NextRequest) {
                     const hours = getOpeningHours(v);
                     const days = countOpeningDays(hours);
                     if (days !== null && days < rule.min_opening_days) {
+                        rejectionAudit.openDays++;
+                        return false;
+                    }
+                }
+
+                // SECONDARY FILTER: Accuracy Check
+                const requestedType = venueTypeStr.toLowerCase();
+                const venueFoundTypes = (v.categories || []).join(", ").toLowerCase();
+                const venueName = (v.name || "").toLowerCase();
+
+                // 2. EXPLICIT GENERIC POI FILTER (New)
+                if (isGenericName(v.name)) {
+                    rejectionAudit.generic++;
+                    console.log(`[search-venues] REJECTED (Generic Name): ${v.name}`);
+                    return false;
+                }
+
+                // 1. Keyword Relevance Check
+                const specificityKeywords = requestedType.split(/[\s_-]/).filter(kw => kw.length > 2);
+
+                // Add synonyms for common searches (User Request: Bar matches Pub)
+                const barKeywords = ["bar", "pub", "taphouse", "club", "lounge", "tavern", "nightclub", "beer", "wine", "cocktail"];
+                if (requestedType.includes("bar")) specificityKeywords.push(...barKeywords.filter(kw => kw !== "bar"));
+                if (requestedType.includes("pub")) specificityKeywords.push("bar", "taphouse", "tavern", "beer");
+
+                if (specificityKeywords.length > 0) {
+                    const matchesTypeOrName = specificityKeywords.some(kw =>
+                        venueFoundTypes.includes(kw) || venueName.includes(kw)
+                    );
+
+                    // If we're searching for a bar and we found a restaurant, we MUST have a strong keyword match
+                    const isRestaurantCategoryOnly = venueFoundTypes.includes("restaurant") &&
+                        !venueFoundTypes.includes("bar") &&
+                        !venueFoundTypes.includes("pub");
+
+                    if (requestedType.includes("bar") && isRestaurantCategoryOnly) {
+                        const hasStrongSignature = barKeywords.some(kw => venueName.includes(kw) || venueFoundTypes.includes(kw));
+                        if (!hasStrongSignature) {
+                            rejectionAudit.accuracy++;
+                            return false;
+                        }
+                    }
+
+                    if (!matchesTypeOrName && !requestedType.includes("restaurant")) {
+                        rejectionAudit.accuracy++;
+                        return false;
+                    }
+                }
+
+                // 3. EXPLICIT CAFE EXCLUSION for Bar searches (User Request)
+                const isBarSearch = requestedType.includes("bar") || requestedType === "pub" || requestedType === "nightclub" || requestedType === "lounge";
+                const isCafeResult = venueFoundTypes.includes("cafe") || venueFoundTypes.includes("coffee");
+
+                if (isBarSearch && isCafeResult) {
+                    // Only allow if the name or categories explicitly contains "bar"/"pub" etc.
+                    const hasStrongBarIndicator = venueName.includes("bar") || venueName.includes("pub") ||
+                        venueName.includes("taphouse") || venueName.includes("nightclub") ||
+                        venueFoundTypes.includes("pub") || venueFoundTypes.includes("nightclub");
+
+                    const matchesSpecificSubtype = specificityKeywords.some(kw => !["bar", "pub"].includes(kw) && venueName.includes(kw));
+
+                    if (!hasStrongBarIndicator && !matchesSpecificSubtype) {
+                        rejectionAudit.cafeExclusion++;
                         return false;
                     }
                 }
@@ -209,6 +411,10 @@ export async function POST(req: NextRequest) {
                 console.log(`[search-venues] PASSED: ${v.name}`);
                 return true;
             });
+
+            const auditStr = `Audit: Bounds=${rejectionAudit.outOfBounds}, Generic=${rejectionAudit.generic}, Chain=${rejectionAudit.chain}, Keyword=${rejectionAudit.keyword}, Accuracy=${rejectionAudit.accuracy}, Days=${rejectionAudit.openDays}`;
+            debugLogs.push(`Rule "${venueTypeStr}" Result: ${filtered.length} passed. ${auditStr}`);
+            console.log(`[search-venues] Audit Summary for "${venueTypeStr}":`, JSON.stringify(rejectionAudit, null, 2));
 
             totalFiltered += filtered.length;
 
@@ -222,8 +428,8 @@ export async function POST(req: NextRequest) {
                 const venueData = {
                     campaign_id: campaignId,
                     neighborhood_id: neighborhoodId,
-                    fsq_id: v.place_id || "", // Reuse the fsq_id column for Geoapify place_id
-                    name: v.name || "Unknown Venue",
+                    fsq_id: v.place_id || "",
+                    name: v.name || v.formatted || "Unnamed Venue",
                     address: v.formatted || "",
                     latitude: v.lat || 0,
                     longitude: v.lon || 0,
@@ -300,6 +506,7 @@ export async function POST(req: NextRequest) {
             duplicatesSkipped: totalDupsSkipped,
             newVenues: allNewVenues.length,
             venues: allNewVenues,
+            debug: debugLogs
         });
     } catch (err: any) {
         console.error("[search-venues]", err);

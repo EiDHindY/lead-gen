@@ -109,6 +109,29 @@ export async function POST(req: NextRequest) {
         );
 
         // 5. CHECK AI FILTERING RESULTS
+        if (result.is_permanently_closed) {
+            console.log(`[get-personnel] Venue rejected: Permanently Closed`);
+            await supabase
+                .from("venues")
+                .update({
+                    status: "skipped",
+                    ai_research_raw: JSON.stringify({
+                        is_permanently_closed: true,
+                        synced_basics: true,
+                        synced_at: new Date().toISOString(),
+                        reason: "Permanently closed on Google Maps"
+                    })
+                })
+                .eq("id", venueId);
+
+            return NextResponse.json({
+                venue: venue.name,
+                aborted: true,
+                reason: "permanently_closed",
+                message: "Venue is permanently closed on Google Maps. Research aborted."
+            });
+        }
+
         if (result.matchesRules === false) {
             console.log(`[get-personnel] Venue rejected by AI rules: ${result.reason}`);
             await supabase
@@ -171,11 +194,37 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 7. Update venue status
+        // 7. Update venue status and captured data
         const hasData = insertedPersonnel.length > 0 || !!venuePhone;
+
+        // Handle Google Category: prepend it to current types to make it "primary"
+        let updatedTypes = venue.types || [];
+        if (result.google_category && !updatedTypes.includes(result.google_category)) {
+            updatedTypes = [result.google_category, ...updatedTypes];
+        }
+
+        // Check for existing sync flag
+        let isSynced = false;
+        if (venue.ai_research_raw) {
+            try {
+                const parsed = JSON.parse(venue.ai_research_raw);
+                if (parsed.synced_basics) isSynced = true;
+            } catch (e) { }
+        }
+
+        const rawResponseObj: any = {
+            raw_gemini: result.raw_response,
+            synced_basics: isSynced || !!result.google_category, // Consider Google category as a sync too
+            synced_at: isSynced ? undefined : new Date().toISOString(),
+            is_permanently_closed: !!result.is_permanently_closed
+        };
+
         const updateData: any = {
             status: hasData ? "researched" : "skipped",
-            ai_research_raw: hasData ? result.raw_response : `No personnel or phone found. \n\nAI Response: ${result.raw_response}`,
+            ai_research_raw: JSON.stringify(rawResponseObj),
+            rating: result.rating || venue.rating,
+            total_ratings: result.total_ratings || venue.total_ratings,
+            types: updatedTypes
         };
 
         // Try to add model_used, but ignore if column missing

@@ -4,6 +4,7 @@ import { supabase, type Venue } from "@/lib/supabase";
 export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () => Promise<void>, selectedNeighborhood: string | null) {
     const [searchingVenues, setSearchingVenues] = useState<string | null>(null);
     const [researchingVenue, setResearchingVenue] = useState<string | null>(null);
+    const [syncingVenue, setSyncingVenue] = useState<string | null>(null);
     const [expandedVenue, setExpandedVenue] = useState<string | null>(null);
 
     // Import state
@@ -18,17 +19,78 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
     const [notionExportProgress, setNotionExportProgress] = useState<{ current: number; total: number } | null>(null);
 
     const [researchProgress, setResearchProgress] = useState<number | null>(null); // null means not researching all
+    const [researchMessage, setResearchMessage] = useState<string>("");
     const cancelRef = useRef(false);
     const [isResearchCancelled, setIsResearchCancelled] = useState(false);
 
-    async function searchVenuesInNeighborhood(neighborhoodId: string, ruleId?: string) {
+    async function searchVenuesInNeighborhood(neighborhoodId: string, ruleId?: string, customType?: string, allRules?: any[]) {
         setSearchingVenues(neighborhoodId);
 
+        // If we are searching ALL rules, we do it one by one to show progress
+        if (!ruleId && !customType && allRules && allRules.length > 0) {
+            cancelRef.current = false;
+            setResearchProgress(0);
+
+            let totalFound = 0;
+            let totalFiltered = 0;
+            let totalDupsSkipped = 0;
+            let totalNewVenues = 0;
+            let completed = 0;
+
+            let data: any = null;
+            for (const rule of allRules) {
+                if (cancelRef.current) break;
+
+                completed++;
+                setResearchProgress(Math.round((completed / allRules.length) * 100));
+                setResearchMessage(`Searching for ${rule.venue_type}... (${completed}/${allRules.length}) [New: ${totalNewVenues}]`);
+
+                try {
+                    const res = await fetch("/api/search-venues", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ campaignId, neighborhoodId, ruleId: rule.id }),
+                    });
+
+                    if (res.ok) {
+                        data = await res.json();
+                        totalFound += data.totalFound || 0;
+                        totalFiltered += data.filtered || 0;
+                        totalDupsSkipped += data.duplicatesSkipped || 0;
+                        totalNewVenues += data.newVenues || 0;
+                    }
+                } catch (err) {
+                    console.error("Failed rule:", rule.venue_type, err);
+                }
+            }
+
+            let debugInfo = "";
+            if (totalFound === 0 && data?.debug) {
+                debugInfo = `\n\nDEBUG LOGS:\n` + (data.debug as string[]).join("\n");
+            }
+
+            alert(
+                `Bulk Search Complete!\n\n` +
+                `Total venues found: ${totalFound}\n` +
+                `Venues that passed your rules & area: ${totalFiltered}\n` +
+                `Duplicates already in your campaign: ${totalDupsSkipped}\n` +
+                `Brand new leads added: ${totalNewVenues}` +
+                debugInfo
+            );
+
+            setResearchProgress(null);
+            setResearchMessage("");
+            setSearchingVenues(null);
+            loadCampaign();
+            return;
+        }
+
+        // Standard single search behavior below
         try {
             const res = await fetch("/api/search-venues", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ campaignId, neighborhoodId, ruleId }),
+                body: JSON.stringify({ campaignId, neighborhoodId, ruleId, customType }),
             });
 
             const data = await res.json();
@@ -37,10 +99,9 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
                 alert("Search failed: " + (data.error || "Unknown error"));
             } else {
                 // Determine the name of the rule searched if we can, else just "venues"
-                const typeStr = ruleId ? `for this venue type` : `overall`;
                 alert(
                     `Search Complete!\n\n` +
-                    `Total venues found by Geoapify: ${data.totalFound}\n` +
+                    `Total venues found: ${data.totalFound}\n` +
                     `Venues that passed your rules & area: ${data.filtered}\n` +
                     `Duplicates already in your campaign: ${data.duplicatesSkipped}\n` +
                     `Brand new leads added: ${data.newVenues}`
@@ -85,6 +146,74 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
             setResearchingVenue(null);
             loadCampaign();
         }
+    }
+
+    async function syncVenueBasics(venueId: string, silent: boolean = false, skipRefresh: boolean = false) {
+        setSyncingVenue(venueId);
+        try {
+            const res = await fetch("/api/sync-venue-basics", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ venueId }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || "Sync failed");
+            }
+
+            if (!skipRefresh) {
+                await loadCampaign();
+            }
+            return data.venue;
+        } catch (err: any) {
+            if (!silent) {
+                alert("Failed to sync venue basics: " + err.message);
+            }
+            throw err;
+        } finally {
+            setSyncingVenue(null);
+        }
+    }
+
+    async function syncAllBasics() {
+        const filtered = selectedNeighborhood
+            ? venues.filter((v) => v.neighborhood_id === selectedNeighborhood)
+            : venues;
+
+        // Let's only sync ones that don't have a google_category yet to save quota?
+        // Or just let the user decide. For now, sync all unresearched or missing ratings.
+        const toSync = filtered.filter(v => v.status === 'new' || !v.rating);
+        if (toSync.length === 0) return;
+
+        setResearchProgress(0); // Reuse researchProgress for the progress bar
+        cancelRef.current = false;
+        let completed = 0;
+
+        for (const venue of toSync) {
+            if (cancelRef.current) break;
+
+            completed++;
+            setResearchProgress(Math.round((completed / toSync.length) * 100));
+            setResearchMessage(`Syncing Official Info... (${completed}/${toSync.length})`);
+
+            try {
+                await syncVenueBasics(venue.id, true, true);
+            } catch (err) {
+                setResearchMessage(`Failed for ${venue.name}. Continuing...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            if (completed < toSync.length) {
+                // 4.5 second delay to stay strictly under 15 RPM Gemini limit for free tier
+                await new Promise(resolve => setTimeout(resolve, 4500));
+            }
+        }
+
+        await loadCampaign();
+        setResearchProgress(null);
+        setResearchMessage("");
     }
 
     async function researchAll() {
@@ -140,7 +269,7 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         loadCampaign();
     }
 
-    async function updateVenueStatus(venueId: string, status: "called" | "skipped") {
+    async function updateVenueStatus(venueId: string, status: "called" | "skipped" | "new") {
         await supabase.from("venues").update({ status }).eq("id", venueId);
         loadCampaign();
     }
@@ -333,6 +462,9 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         importSourceName,
         setImportSourceName,
         researchProgress,
+        researchMessage,
+        isResearchCancelled,
+        setIsResearchCancelled,
         searchVenuesInNeighborhood,
         researchPersonnel,
         researchAll,
@@ -347,6 +479,9 @@ export function useVenues(campaignId: string, venues: Venue[], loadCampaign: () 
         handleFileUploads,
         exportToNotion,
         notionExporting,
-        notionExportProgress
+        notionExportProgress,
+        syncVenueBasics,
+        syncAllBasics,
+        syncingVenue
     };
 }

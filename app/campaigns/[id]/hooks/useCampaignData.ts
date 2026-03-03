@@ -31,7 +31,7 @@ export function useCampaignData(id: string) {
             ] = await Promise.all([
                 supabase.from("campaigns").select("*").eq("id", id).single(),
                 supabase.from("campaign_rules").select("*").eq("campaign_id", id),
-                supabase.from("neighborhoods").select("*").eq("campaign_id", id).order("created_at", { ascending: true }),
+                supabase.from("neighborhoods").select("*").eq("campaign_id", id).order("searched_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
                 supabase.from("neighborhood_searches").select("*").eq("campaign_id", id),
                 supabase.from("venues").select("*").eq("campaign_id", id).order("created_at", { ascending: false }).limit(5000)
             ]);

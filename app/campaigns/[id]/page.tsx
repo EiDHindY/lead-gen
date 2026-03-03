@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { useCampaignData } from "./hooks/useCampaignData";
 import { useNeighborhoods } from "./hooks/useNeighborhoods";
 import { useVenues } from "./hooks/useVenues";
@@ -62,6 +63,7 @@ export default function CampaignDetailPage() {
         importSourceName,
         setImportSourceName,
         researchProgress,
+        researchMessage,
         searchVenuesInNeighborhood,
         researchPersonnel,
         researchAll,
@@ -76,12 +78,20 @@ export default function CampaignDetailPage() {
         handleFileUploads,
         exportToNotion,
         notionExporting,
-        notionExportProgress
+        notionExportProgress,
+        syncVenueBasics,
+        syncAllBasics,
+        syncingVenue
     } = useVenues(id, venues, loadCampaign, selectedNeighborhood);
 
-    if (loading) {
+    if (loading && !campaign) {
         return (
-            <div className="text-center text-muted py-16">Loading campaign...</div>
+            <div className="flex items-center justify-center min-h-[60vh] text-muted font-medium">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
+                    <p className="animate-pulse">Loading campaign...</p>
+                </div>
+            </div>
         );
     }
 
@@ -123,6 +133,8 @@ export default function CampaignDetailPage() {
                         addBulkNeighborhoods={addBulkNeighborhoods}
                         addingBulk={addingBulk}
                         discardStagedAreas={discardStagedAreas}
+                        researchProgress={researchProgress}
+                        researchMessage={researchMessage}
                     />
                 </div>
                 {campaign.product_description && (
@@ -152,6 +164,7 @@ export default function CampaignDetailPage() {
                     stopResearch={stopResearch}
                     resetSkippedVenues={resetSkippedVenues}
                     researchProgress={researchProgress}
+                    researchMessage={researchMessage}
                     exportCSV={exportCSV}
                     personnelMap={personnelMap}
                     expandedVenue={expandedVenue}
@@ -167,6 +180,11 @@ export default function CampaignDetailPage() {
                     notionExporting={notionExporting}
                     notionExportProgress={notionExportProgress}
                     deleteVenue={deleteVenue}
+                    syncVenueBasics={syncVenueBasics}
+                    syncAllBasics={syncAllBasics}
+                    syncingVenue={syncingVenue}
+                    searchVenuesInNeighborhood={searchVenuesInNeighborhood}
+                    searchingVenues={searchingVenues}
                 />
             </div>
 

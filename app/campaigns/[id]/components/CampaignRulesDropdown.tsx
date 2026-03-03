@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { type CampaignRule } from "@/lib/supabase";
-import { ClipboardList, ChevronUp, ChevronDown, Edit2, Star, Calendar, Ban, FileText, X, Settings } from "lucide-react";
+import { ClipboardList, ChevronUp, ChevronDown, Edit2, Star, Calendar, Ban, FileText, X, Settings, Loader2 } from "lucide-react";
 
 interface CampaignRulesDropdownProps {
     rules: CampaignRule[];
@@ -10,6 +10,7 @@ interface CampaignRulesDropdownProps {
 export function CampaignRulesDropdown({ rules, updateRule }: CampaignRulesDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+    const [isSavingToAll, setIsSavingToAll] = useState(false);
 
     // Form state for editing
     const [editForm, setEditForm] = useState<Partial<CampaignRule>>({});
@@ -27,6 +28,19 @@ export function CampaignRulesDropdown({ rules, updateRule }: CampaignRulesDropdo
     const handleSave = async (ruleId: string) => {
         await updateRule(ruleId, editForm);
         setEditingRuleId(null);
+    };
+
+    const handleSaveToAll = async () => {
+        if (!confirm("Apply these settings to ALL venue types in this campaign?")) return;
+        setIsSavingToAll(true);
+        try {
+            for (const r of rules) {
+                await updateRule(r.id, editForm);
+            }
+        } finally {
+            setIsSavingToAll(false);
+            setEditingRuleId(null);
+        }
     };
 
     const handleCancel = () => {
@@ -143,13 +157,24 @@ export function CampaignRulesDropdown({ rules, updateRule }: CampaignRulesDropdo
                                                 <div className="flex gap-3 justify-end pt-3 border-t border-border mt-4">
                                                     <button
                                                         onClick={handleCancel}
-                                                        className="px-4 py-2 rounded-xl text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-colors"
+                                                        disabled={isSavingToAll}
+                                                        className="px-4 py-2 rounded-xl text-xs font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50"
                                                     >
                                                         Cancel
                                                     </button>
                                                     <button
+                                                        onClick={handleSaveToAll}
+                                                        disabled={isSavingToAll}
+                                                        className="px-4 py-2 rounded-xl text-xs font-medium bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors border border-secondary/20 disabled:opacity-50 flex items-center gap-1.5"
+                                                        title="Apply these settings to all venue types"
+                                                    >
+                                                        {isSavingToAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ClipboardList className="w-3.5 h-3.5" />}
+                                                        Apply to All
+                                                    </button>
+                                                    <button
                                                         onClick={() => handleSave(rule.id)}
-                                                        className="btn-primary-premium py-2 px-5"
+                                                        disabled={isSavingToAll}
+                                                        className="btn-primary-premium py-2 px-5 disabled:opacity-50"
                                                     >
                                                         Save Changes
                                                     </button>

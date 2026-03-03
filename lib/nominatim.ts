@@ -14,7 +14,7 @@ export interface NominatimResult {
     category?: string;
     geojson?: {
         type: string;
-        coordinates: unknown;
+        coordinates: any;
     };
     boundingbox: (string | number)[]; // [south, north, west, east]
 }
@@ -87,4 +87,55 @@ export function getBoundingBoxRadius(
 
     // Half the diagonal gives us a rough radius
     return Math.round(Math.sqrt(latMeters ** 2 + lngMeters ** 2) / 2);
+}
+
+/**
+ * Check if a point is inside a polygon using ray-casting
+ */
+export function pointInPolygon(point: number[], vs: number[][]): boolean {
+    var x = point[0], y = point[1];
+    var inside = false;
+    for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        var xi = vs[i][0], yi = vs[i][1];
+        var xj = vs[j][0], yj = vs[j][1];
+        var intersect = ((yi > y) != (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+/**
+ * Check if a point is inside a GeoJSON MultiPolygon or Polygon
+ * coordinate array format: [lng, lat]
+ */
+export function isPointInGeoJSONPolygon(pointLngLat: number[], geojson: any): boolean {
+    if (!geojson || !geojson.coordinates) return false;
+
+    if (geojson.type === "Polygon") {
+        return pointInMultiPolygon(pointLngLat, [geojson.coordinates]);
+    } else if (geojson.type === "MultiPolygon") {
+        return pointInMultiPolygon(pointLngLat, geojson.coordinates);
+    }
+
+    return false;
+}
+
+function pointInMultiPolygon(point: number[], polygons: number[][][][]): boolean {
+    for (const polygon of polygons as any) {
+        // First ring is the outer boundary
+        const outerRing = polygon[0];
+        if (pointInPolygon(point, outerRing)) {
+            // Check holes (inner rings)
+            let inHole = false;
+            for (let i = 1; i < polygon.length; i++) {
+                if (pointInPolygon(point, polygon[i])) {
+                    inHole = true;
+                    break;
+                }
+            }
+            if (!inHole) return true;
+        }
+    }
+    return false;
 }

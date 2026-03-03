@@ -7,10 +7,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 // Model fallback chain — each model has its OWN separate quota
 const GEMINI_MODELS = [
-    "gemini-1.5-pro",
     "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-pro",
     "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
 ];
 
 // Track which models are depleted in this runtime session
@@ -29,6 +29,10 @@ interface PersonnelResult {
 interface ResearchResult {
     personnel: PersonnelResult[];
     matchesRules: boolean;
+    rating?: number | null;
+    total_ratings?: number | null;
+    google_category?: string | null;
+    is_permanently_closed?: boolean;
     reason?: string;
     raw_response: string;
     model_used?: string;
@@ -205,6 +209,136 @@ export async function researchVenuePhone(
 }
 
 
+
+/**
+ * Specifically research a venue's BASIC information (Name, Category, Rating).
+ * Fast and lightweight - no personnel.
+ * Chain: Gemini models → Groq fallback.
+ */
+export async function researchVenueBasics(
+    venueName: string,
+    venueAddress: string,
+    venueTypes: string[],
+    googleMapsUrl?: string | null
+): Promise<{
+    name: string | null;
+    google_category: string | null;
+    rating: number | null;
+    total_ratings: number | null;
+    is_permanently_closed?: boolean;
+    status_reason?: string | null;
+}> {
+    const prompt = `You are a research assistant. Verify the official details for this venue on Google Maps.
+    
+    INPUT NAME: ${venueName}
+    INPUT ADDRESS: ${venueAddress}
+    INPUT TYPES: ${venueTypes.join(", ")}
+    GOOGLE MAPS URL: ${googleMapsUrl || "None provided"}
+    
+    CRITICAL INSTRUCTIONS:
+    1. If the INPUT NAME is "Unknown Venue", "Unknown", or looks like a placeholder, use the INPUT ADDRESS to find the exact business name currently at that location.
+    2. Identify the MOST SPECIFIC official business category (e.g., "Japanese BBQ Restaurant" instead of just "Restaurant", "Specialty Coffee Shop" instead of "Cafe"). 
+    3. AVOID broad parent categories like "Catering", "Catering Service", or "Shop" if a more descriptive one exists.
+    4. CHECK BUSINESS STATUS: Extremely important. Determine if the business is currently "Permanently closed" or "Temporarily closed" on Google Maps. If there is ANY indication of closure, set is_permanently_closed to true.
+    
+    Return ONLY valid JSON in this format:
+    {
+      "official_name": "Exact Name on Google Maps",
+      "google_category": "Very Specific Category",
+      "rating": 4.5,
+      "total_ratings": 120,
+      "is_permanently_closed": true/false,
+      "status_reason": "Explain your determination"
+    }
+    
+    If unknown, return null for the field. Do not guess.`;
+
+    // 1. Try Gemini first
+    for (const modelName of GEMINI_MODELS) {
+        if (depletedModels.has(modelName)) continue;
+        try {
+            console.log(`[AI-Basics] Trying ${modelName} for "${venueName}"`);
+            const modelOptions: any = {
+                model: modelName,
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    maxOutputTokens: 2048,
+                }
+            };
+
+            // Only Gemini 2.0+ models fully support googleSearch grounding reliably via this SDK format sometimes, 
+            // but we can pass it generally; it might be ignored or error on 1.5, so we'll conditionally add it for 2.0.
+            if (modelName.includes("2.0") || modelName.includes("1.5")) {
+                modelOptions.tools = [{ googleSearch: {} }];
+            }
+
+            const model = genAI.getGenerativeModel(modelOptions);
+            const result = await model.generateContent(prompt);
+            const text = result.response.text();
+
+            // Basic extraction
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                return {
+                    name: parsed.official_name || null,
+                    google_category: parsed.google_category || null,
+                    rating: parsed.rating !== undefined ? Number(parsed.rating) : null,
+                    total_ratings: parsed.total_ratings !== undefined ? Number(parsed.total_ratings) : null,
+                    is_permanently_closed: !!parsed.is_permanently_closed,
+                    status_reason: parsed.status_reason || null
+                };
+            }
+            continue;
+        } catch (err: any) {
+            console.warn(`[AI-Basics] Error on ${modelName}:`, err?.message || err);
+            if (isQuotaError(err)) depletedModels.add(modelName);
+            continue;
+        }
+    }
+
+    // 2. Fallback to Groq
+    console.log(`[AI-Basics] Gemini models exhausted. Trying Groq fallback for "${venueName}"...`);
+    try {
+        const apiKey = process.env.GROQ_API_KEY;
+        if (apiKey) {
+            const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: "llama-3.3-70b-versatile",
+                    messages: [{ role: "user", content: prompt }],
+                    temperature: 0.1,
+                }),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const text = (data.choices?.[0]?.message?.content || "").trim();
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    return {
+                        name: parsed.official_name || null,
+                        google_category: parsed.google_category || null,
+                        rating: parsed.rating !== undefined ? Number(parsed.rating) : null,
+                        total_ratings: parsed.total_ratings !== undefined ? Number(parsed.total_ratings) : null,
+                        is_permanently_closed: !!parsed.is_permanently_closed,
+                        status_reason: parsed.status_reason || "Verified via Groq"
+                    };
+                }
+            }
+        }
+    } catch (err) {
+        console.error("[AI-Basics] Groq fallback failed:", err);
+    }
+
+    return { name: null, google_category: null, rating: null, total_ratings: null, is_permanently_closed: false, status_reason: null };
+}
+
 // ── Gemini caller ──
 
 async function callGemini(
@@ -314,11 +448,16 @@ CRITICAL INSTRUCTIONS TO PREVENT HALLUCINATIONS:
 10. DO NOT return generic placeholders like 'General Manager' or 'Owner' if you cannot find a specific person's verifiable FULL NAME.
 11. If you cannot find any specific personnel with verifiable names for this exact venue, return an empty personnel list.
 12. Include any specific phone numbers or emails you can find, but do not hallucinate them if unknown.
+13. Find the venue's average rating (out of 5) and the total number of reviews/ratings. If unknown, return null for these fields.
 
 Respond ONLY with valid JSON in this exact format:
 {
   "matchesRules": true/false (defaults to true if no specific rules given),
   "reason": "Explain why it matches or why it was rejected",
+  "rating": 4.5, (the average rating out of 5, or null if unknown)
+  "total_ratings": 120, (the total number of reviews/ratings, or null if unknown)
+  "google_category": "Italian Restaurant", (the specific business category as listed on Google Maps, or null if unknown)
+  "is_permanently_closed": true/false, (whether the business is permanently closed on Google Maps)
   "personnel": [
     {
       "name": "Full Name",
@@ -338,6 +477,10 @@ If the venue does not match the rules, or no verifiable people with specific nam
 function parsePersonnelFromResponse(text: string): {
     personnel: PersonnelResult[];
     matchesRules: boolean;
+    rating: number | null;
+    total_ratings: number | null;
+    google_category: string | null;
+    is_permanently_closed: boolean;
     reason: string;
 } {
     try {
@@ -360,6 +503,10 @@ function parsePersonnelFromResponse(text: string): {
         return {
             matchesRules: parsed.matchesRules ?? true,
             reason: parsed.reason || "",
+            rating: parsed.rating !== undefined ? Number(parsed.rating) : null,
+            total_ratings: parsed.total_ratings !== undefined ? Number(parsed.total_ratings) : null,
+            google_category: parsed.google_category || null,
+            is_permanently_closed: !!parsed.is_permanently_closed,
             personnel: Array.isArray(parsed.personnel) ? parsed.personnel
                 .map((p: Record<string, any>) => ({
                     name: (p.name || "").trim(),
@@ -392,6 +539,10 @@ function parsePersonnelFromResponse(text: string): {
         return {
             matchesRules: true,
             reason: "Failed to parse AI response",
+            rating: null,
+            total_ratings: null,
+            google_category: null,
+            is_permanently_closed: false,
             personnel: []
         };
     }

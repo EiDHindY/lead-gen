@@ -169,3 +169,167 @@ export async function validateNotionConnection(
         return { valid: false, error: err.message };
     }
 }
+
+// --- New Custom Impl for Markdown Table Sync ---
+
+export interface CustomNotionVenue {
+    venueAndLocation: string; // The Name + Address
+    contactsAndPersonnel: string; // The combined Phone + Personnel
+    link?: string; // Optional clickable link
+    status?: string; // Optional status string
+    pitch?: string; // Optional pitch string
+}
+
+/**
+ * Fetch the database schema and find property names that match our expected columns.
+ * This handles cases where properties have emoji prefixes or slight naming differences.
+ */
+export async function discoverPropertyNames(
+    notionToken: string,
+    databaseId: string
+): Promise<{
+    success: boolean;
+    venueKey?: string;
+    contactsKey?: string;
+    pitchKey?: string;
+    statusKey?: string;
+    allProperties?: string[];
+    error?: string;
+}> {
+    try {
+        const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+            headers: {
+                Authorization: `Bearer ${notionToken}`,
+                "Notion-Version": "2022-06-28",
+            },
+        });
+
+        if (!res.ok) {
+            const body = await res.json();
+            return { success: false, error: body.message || `Notion API error: ${res.status}` };
+        }
+
+        const data = await res.json();
+        const properties = data.properties || {};
+        const propertyNames = Object.keys(properties);
+
+        console.log("[notion] All property names found:", propertyNames);
+
+        // Find matching properties using case-insensitive matching
+        // Use multiple keywords per field to find the best match
+        const findProp = (keywords: string[]) => {
+            // First try to find a property that contains ALL keywords
+            for (let k = keywords.length; k > 0; k--) {
+                const match = propertyNames.find((name: string) => {
+                    const lower = name.toLowerCase();
+                    return keywords.slice(0, k).every(kw => lower.includes(kw.toLowerCase()));
+                });
+                if (match) return match;
+            }
+            return undefined;
+        };
+
+        const venueKey = findProp(["venue", "location"]) || findProp(["venue"]);
+        const contactsKey = findProp(["contacts", "personnel"]) || findProp(["contacts"]);
+        const pitchKey = findProp(["pitch", "recommended"]) || findProp(["recommended"]);
+        const statusKey = findProp(["status", "notes", "task_notes"]) || findProp(["notes"]);
+
+        if (!venueKey || !contactsKey) {
+            return {
+                success: false,
+                allProperties: propertyNames,
+                error: `Could not find all required properties. Found: venue=${venueKey || "NOT FOUND"}, contacts=${contactsKey || "NOT FOUND"}. Available properties: [${propertyNames.join(", ")}]`,
+            };
+        }
+
+        console.log(`[notion] Discovered properties: venue="${venueKey}", contacts="${contactsKey}", pitch="${pitchKey}", status="${statusKey}"`);
+
+        return { success: true, venueKey, contactsKey, pitchKey, statusKey, allProperties: propertyNames };
+    } catch (err: any) {
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * Export a single parsed markdown venue to the Notion database.
+ * Uses dynamically discovered property names instead of hardcoded keys.
+ */
+export async function exportCustomVenueToNotion(
+    notionToken: string,
+    databaseId: string,
+    venue: CustomNotionVenue,
+    propertyKeys: { venueKey: string; contactsKey: string; pitchKey?: string; statusKey?: string }
+): Promise<{ success: boolean; pageId?: string; error?: string }> {
+    try {
+        const body = {
+            parent: { database_id: databaseId },
+            properties: {
+                [propertyKeys.venueKey]: {
+                    title: (() => {
+                        const blocks: any[] = [
+                            { text: { content: venue.venueAndLocation.substring(0, 2000) } },
+                        ];
+                        if (venue.link) {
+                            blocks.push(
+                                { text: { content: "\n" } },
+                                {
+                                    text: {
+                                        content: venue.link.substring(0, 2000),
+                                        link: { url: venue.link },
+                                    },
+                                }
+                            );
+                        }
+                        return blocks;
+                    })(),
+                },
+                [propertyKeys.contactsKey]: {
+                    rich_text: [
+                        {
+                            text: {
+                                content: venue.contactsAndPersonnel.substring(0, 2000),
+                            },
+                        },
+                    ],
+                },
+                ...(propertyKeys.statusKey && venue.status ? {
+                    [propertyKeys.statusKey]: {
+                        rich_text: [{ text: { content: venue.status.substring(0, 2000) } }]
+                    }
+                } : {}),
+                ...(propertyKeys.pitchKey && venue.pitch ? {
+                    [propertyKeys.pitchKey]: {
+                        rich_text: [{ text: { content: venue.pitch.substring(0, 2000) } }]
+                    }
+                } : {}),
+
+            },
+        };
+
+        console.log(`[notion] Sending request to Notion:`, JSON.stringify(body, null, 2));
+
+        const res = await fetch("https://api.notion.com/v1/pages", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${notionToken}`,
+                "Content-Type": "application/json",
+                "Notion-Version": "2022-06-28",
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+            const body = await res.json();
+            console.error("[notion] API Error:", JSON.stringify(body, null, 2));
+            return {
+                success: false,
+                error: body.message || `Notion API error: ${res.status}`,
+            };
+        }
+
+        const data = await res.json();
+        return { success: true, pageId: data.id };
+    } catch (err: any) {
+        return { success: false, error: err.message };
+    }
+}

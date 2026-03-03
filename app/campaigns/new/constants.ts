@@ -35,14 +35,48 @@ export const VENUE_GROUPS: Array<{ label: string; emoji: string; types: string[]
         types: ["bar", "pub", "wine_bar", "brewery", "nightclub", "lounge", "cocktail_bar", "hookah_lounge"],
     },
     {
-        label: "Entertainment & Activities",
-        emoji: "🎯",
-        types: ["arcade", "mini_golf", "bowling_alley", "snooker_hall", "pool_hall", "event_venue"],
+        label: "Adventure Activities",
+        emoji: "🏹",
+        types: [
+            "escape_rooms_laser_tag",
+            "airsoft_paintball",
+            "ropes_courses_ziplines",
+            "atv_off_road_tours",
+            "bike_segway_tours"
+        ],
     },
     {
-        label: "Hospitality & Leisure",
-        emoji: "🏨",
-        types: ["hotel", "gym", "spa", "salon"],
+        label: "Water Activities",
+        emoji: "🌊",
+        types: [
+            "kayaking_paddleboarding",
+            "snorkeling_scuba",
+            "jet_ski_wakeboarding",
+            "surfing",
+            "sailing_boat_tours"
+        ],
+    },
+    {
+        label: "Adrenaline Experiences",
+        emoji: "⚡",
+        types: [
+            "skydiving_bungee",
+            "hot_air_balloon",
+            "paragliding_hang_gliding",
+            "go_kart_track_racing",
+            "vr_simulator"
+        ],
+    },
+    {
+        label: "Activities",
+        emoji: "🎡",
+        types: [
+            "aquariums_zoos",
+            "museums_cultural_sites",
+            "water_parks_pools",
+            "arcades_indoor_play",
+            "mini_golf_trampoline"
+        ],
     },
 ];
 

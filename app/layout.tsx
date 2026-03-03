@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import NavbarLinks from "./NavbarLinks";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -28,26 +29,7 @@ export default function RootLayout({
                   </div>
                   <span className="text-lg font-semibold text-foreground">LeadGen</span>
                 </Link>
-                <div className="flex items-center gap-6">
-                  <Link
-                    href="/"
-                    className="text-sm text-muted hover:text-foreground transition-colors"
-                  >
-                    Dashboard
-                  </Link>
-                  <Link
-                    href="/campaigns"
-                    className="text-sm text-muted hover:text-foreground transition-colors"
-                  >
-                    Campaigns
-                  </Link>
-                  <Link
-                    href="/campaigns/new"
-                    className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors"
-                  >
-                    + New Campaign
-                  </Link>
-                </div>
+                <NavbarLinks />
               </div>
             </div>
           </nav>

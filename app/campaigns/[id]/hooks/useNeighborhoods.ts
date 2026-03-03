@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 import { SubAreaResult } from "@/app/api/fetch-sub-areas/route";
 
 export function useNeighborhoods(campaignId: string, loadCampaign: () => Promise<void>) {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
     const [areaQuery, setAreaQuery] = useState("");
     const [searchingArea, setSearchingArea] = useState(false);
     const [fetchingSubAreas, setFetchingSubAreas] = useState<{ id: number; loading: boolean }>({ id: 0, loading: false });
@@ -17,9 +21,29 @@ export function useNeighborhoods(campaignId: string, loadCampaign: () => Promise
             lng: number;
             boundingbox: string[];
             geojson: { type: string; coordinates: unknown };
+            type?: string;
         }>
     >([]);
-    const [selectedNeighborhood, setSelectedNeighborhood] = useState<string | null>(null);
+    const [selectedNeighborhood, setSelectedNeighborhood] = useState<string | null>(
+        searchParams.get("neighborhood")
+    );
+
+    // Sync state to URL
+    useEffect(() => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (selectedNeighborhood) {
+            params.set("neighborhood", selectedNeighborhood);
+        } else {
+            params.delete("neighborhood");
+        }
+
+        const newSearch = params.toString();
+        const currentSearch = searchParams.toString();
+
+        if (newSearch !== currentSearch) {
+            router.replace(`?${newSearch}`, { scroll: false });
+        }
+    }, [selectedNeighborhood, router, searchParams]);
 
     async function handleAreaSearch() {
         if (!areaQuery.trim()) return;
