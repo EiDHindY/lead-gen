@@ -20,7 +20,7 @@ function pointInPolygon(point: number[], vs: number[][]) {
 }
 
 // Multipolygon support
-function pointInMultiPolygon(point: number[], polygons: number[][][]) {
+function pointInMultiPolygon(point: number[], polygons: any[]) {
     for (const polygon of polygons) {
         // First ring is the outer boundary
         const outerRing = polygon[0];
