@@ -35,28 +35,50 @@ export async function POST(req: NextRequest) {
         const lines = markdownText.split("\n");
         const dataRows: string[][] = [];
 
-        // Header keywords to skip if they appear at the start
+        // Header keywords to skip
         const headerKeywords = ["venue", "location", "contacts", "personnel", "status", "pitch", "link"];
+
+        // Smart separator detection: matches lines like "---|---|---", "| --- | --- |", ":---:|:---:", etc.
+        const isSeparatorLine = (line: string) =>
+            /^[|\s:-]+$/.test(line) && line.includes("---");
+
+        // Smart cell splitting that handles both formats:
+        //   "| Cell1 | Cell2 |"  →  ["Cell1", "Cell2"]
+        //   "Cell1 | Cell2"      →  ["Cell1", "Cell2"]
+        const splitCells = (line: string): string[] => {
+            // Strip leading/trailing pipes if present, then split on remaining pipes
+            const stripped = line.replace(/^\|/, "").replace(/\|$/, "");
+            return stripped.split("|").map((c: string) => c.trim()).filter(Boolean);
+        };
 
         for (let idx = 0; idx < lines.length; idx++) {
             const line = lines[idx].trim();
-            // Skip empty, headers, or separator lines
-            if (!line || !line.startsWith("|") || line.includes("| :---")) continue;
 
-            const cells = line
-                .split("|")
-                .map((c: string) => c.trim())
-                .filter((_: string, i: number, arr: string[]) => i > 0 && i < arr.length - 1);
+            // Skip empty lines and separator lines
+            if (!line || isSeparatorLine(line)) continue;
 
-            // Improved header detection: 
-            // Only skip as a header if it's one of the first few rows 
-            // AND contains mostly header-like keywords.
-            if (idx < 5) {
-                const isHeader = cells.some((cell: string) =>
-                    headerKeywords.includes(cell.toLowerCase())
-                ) && cells.length >= 2;
+            // A line must contain at least one pipe to be a table row
+            if (!line.includes("|")) continue;
 
-                if (isHeader) {
+            const cells = splitCells(line);
+
+            // Skip header-like rows (only check the first few lines)
+            // A cell is only "header-like" if it's short and primarily a header keyword,
+            // NOT a long data cell that happens to contain the word "Personnel" etc.
+            if (idx < 5 && cells.length >= 2) {
+                const isHeaderCell = (cell: string) => {
+                    const cleaned = cell.toLowerCase().replace(/[&,]/g, " ").trim();
+                    // Only count as header if the cell is short (just label text, not data)
+                    if (cleaned.length > 40) return false;
+                    // Split into words and check if most words are header keywords
+                    const words = cleaned.split(/\s+/).filter(Boolean);
+                    const keywordWords = words.filter((w) => headerKeywords.includes(w));
+                    return keywordWords.length >= Math.ceil(words.length / 2);
+                };
+
+                const headerCellCount = cells.filter(isHeaderCell).length;
+
+                if (headerCellCount >= Math.ceil(cells.length / 2)) {
                     console.log(`[sync-md] Skipping header-like row: "${line}"`);
                     continue;
                 }
