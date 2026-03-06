@@ -17,16 +17,20 @@ export async function exportVenueToNotion(
     databaseId: string,
     venue: NotionVenueData
 ): Promise<{ success: boolean; pageId?: string; error?: string }> {
+    const token = notionToken.trim();
+    const dbId = databaseId.trim();
+
     try {
         const res = await fetch("https://api.notion.com/v1/pages", {
             method: "POST",
             headers: {
-                Authorization: `Bearer ${notionToken}`,
+                Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
                 "Notion-Version": "2022-06-28",
             },
+            cache: "no-store",
             body: JSON.stringify({
-                parent: { database_id: databaseId },
+                parent: { database_id: dbId },
                 properties: {
                     // Title column: Venue_Location
                     Venue_Location: {
@@ -146,12 +150,16 @@ export async function validateNotionConnection(
     notionToken: string,
     databaseId: string
 ): Promise<{ valid: boolean; dbTitle?: string; error?: string }> {
+    const token = notionToken.trim();
+    const dbId = databaseId.trim();
+
     try {
-        const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+        const res = await fetch(`https://api.notion.com/v1/databases/${dbId}`, {
             headers: {
-                Authorization: `Bearer ${notionToken}`,
+                Authorization: `Bearer ${token}`,
                 "Notion-Version": "2022-06-28",
             },
+            cache: "no-store",
         });
 
         if (!res.ok) {
@@ -196,12 +204,16 @@ export async function discoverPropertyNames(
     allProperties?: string[];
     error?: string;
 }> {
+    const token = notionToken.trim();
+    const dbId = databaseId.trim();
+
     try {
-        const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+        const res = await fetch(`https://api.notion.com/v1/databases/${dbId}`, {
             headers: {
-                Authorization: `Bearer ${notionToken}`,
+                Authorization: `Bearer ${token}`,
                 "Notion-Version": "2022-06-28",
             },
+            cache: "no-store",
         });
 
         if (!res.ok) {
@@ -260,9 +272,12 @@ export async function exportCustomVenueToNotion(
     venue: CustomNotionVenue,
     propertyKeys: { venueKey: string; contactsKey: string; pitchKey?: string; statusKey?: string }
 ): Promise<{ success: boolean; pageId?: string; error?: string }> {
+    const token = notionToken.trim();
+    const dbId = databaseId.trim();
+
     try {
         const body = {
-            parent: { database_id: databaseId },
+            parent: { database_id: dbId },
             properties: {
                 [propertyKeys.venueKey]: {
                     title: (() => {
@@ -311,10 +326,11 @@ export async function exportCustomVenueToNotion(
         const res = await fetch("https://api.notion.com/v1/pages", {
             method: "POST",
             headers: {
-                Authorization: `Bearer ${notionToken}`,
+                Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
                 "Notion-Version": "2022-06-28",
             },
+            cache: "no-store",
             body: JSON.stringify(body),
         });
 

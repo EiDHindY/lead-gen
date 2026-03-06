@@ -30,7 +30,7 @@ export default function NotionPage() {
       const res = await fetch("/api/notion/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ integrationToken: token, databaseId: databaseId })
+        body: JSON.stringify({ integrationToken: token.trim(), databaseId: databaseId.trim() })
       });
 
       const data = await res.json();
@@ -60,8 +60,8 @@ export default function NotionPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          integrationToken: token,
-          databaseId: databaseId,
+          integrationToken: token.trim(),
+          databaseId: databaseId.trim(),
           markdownText: markdownData
         })
       });

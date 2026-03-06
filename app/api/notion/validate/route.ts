@@ -5,15 +5,17 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { integrationToken, databaseId } = body;
+        const token = integrationToken?.trim();
+        const dbId = databaseId?.trim();
 
-        if (!integrationToken || !databaseId) {
+        if (!token || !dbId) {
             return NextResponse.json(
                 { error: "Missing required fields (integrationToken, databaseId)" },
                 { status: 400 }
             );
         }
 
-        const result = await validateNotionConnection(integrationToken, databaseId);
+        const result = await validateNotionConnection(token, dbId);
 
         return NextResponse.json(result);
     } catch (error: any) {

@@ -7,8 +7,10 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { markdownText, integrationToken, databaseId } = body;
+        const token = integrationToken?.trim();
+        const dbId = databaseId?.trim();
 
-        if (!markdownText || !integrationToken || !databaseId) {
+        if (!markdownText || !token || !dbId) {
             return NextResponse.json(
                 { error: "Missing required fields (markdownText, integrationToken, databaseId)" },
                 { status: 400 }
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 0. Discover property names
-        const discovery = await discoverPropertyNames(integrationToken, databaseId);
+        const discovery = await discoverPropertyNames(token, dbId);
         if (!discovery.success) {
             return NextResponse.json(
                 { error: `Property discovery failed: ${discovery.error}` },
@@ -175,7 +177,7 @@ export async function POST(req: NextRequest) {
 
         for (const venue of parsedVenues) {
             console.log(`[sync-md] Exporting: ${venue.venueAndLocation.substring(0, 50)}...`);
-            const res = await exportCustomVenueToNotion(integrationToken, databaseId, venue, propertyKeys);
+            const res = await exportCustomVenueToNotion(token, dbId, venue, propertyKeys);
             if (res.success) {
                 console.log(`[sync-md] Export success: ${res.pageId}`);
                 exportedCount++;
