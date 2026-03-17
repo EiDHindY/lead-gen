@@ -150,7 +150,7 @@ export default function NotionPage() {
             <label className="block text-sm font-medium text-muted mb-2">Markdown Data (2-Row Format)</label>
             <textarea
               rows={10}
-              placeholder={"| Venue | Contacts | Status | Pitch |\n| Link | Personnel | | |"}
+              placeholder={"| Venue | Contacts | Activity & Reviews | Status |\n| Link | Personnel | | |"}
               value={markdownData}
               onChange={(e) => setMarkdownData(e.target.value)}
               className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground font-mono text-sm focus:outline-none focus:border-primary transition-colors resize-y min-h-[200px]"

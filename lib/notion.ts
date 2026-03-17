@@ -184,7 +184,8 @@ export interface CustomNotionVenue {
     venueAndLocation: string; // The Name + Address
     contactsAndPersonnel: string; // The combined Phone + Personnel
     link?: string; // Optional clickable link
-    status?: string; // Optional status string
+    activities?: string; // NEW: Dedicated activities field
+    reviews?: string; // NEW: Dedicated reviews field
     pitch?: string; // Optional pitch string
 }
 
@@ -199,6 +200,8 @@ export async function discoverPropertyNames(
     success: boolean;
     venueKey?: string;
     contactsKey?: string;
+    activitiesKey?: string;
+    reviewsKey?: string;
     pitchKey?: string;
     statusKey?: string;
     allProperties?: string[];
@@ -243,6 +246,8 @@ export async function discoverPropertyNames(
 
         const venueKey = findProp(["venue", "location"]) || findProp(["venue"]);
         const contactsKey = findProp(["contacts", "personnel"]) || findProp(["contacts"]);
+        const activitiesKey = findProp(["activities"]) || findProp(["activity"]);
+        const reviewsKey = findProp(["reviews"]) || findProp(["review"]);
         const pitchKey = findProp(["pitch", "recommended"]) || findProp(["recommended"]);
         const statusKey = findProp(["status", "notes", "task_notes"]) || findProp(["notes"]);
 
@@ -254,9 +259,9 @@ export async function discoverPropertyNames(
             };
         }
 
-        console.log(`[notion] Discovered properties: venue="${venueKey}", contacts="${contactsKey}", pitch="${pitchKey}", status="${statusKey}"`);
+        console.log(`[notion] Discovered properties: venue="${venueKey}", contacts="${contactsKey}", activities="${activitiesKey}", reviews="${reviewsKey}", pitch="${pitchKey}", status="${statusKey}"`);
 
-        return { success: true, venueKey, contactsKey, pitchKey, statusKey, allProperties: propertyNames };
+        return { success: true, venueKey, contactsKey, activitiesKey, reviewsKey, pitchKey, statusKey, allProperties: propertyNames };
     } catch (err: any) {
         return { success: false, error: err.message };
     }
@@ -270,7 +275,7 @@ export async function exportCustomVenueToNotion(
     notionToken: string,
     databaseId: string,
     venue: CustomNotionVenue,
-    propertyKeys: { venueKey: string; contactsKey: string; pitchKey?: string; statusKey?: string }
+    propertyKeys: { venueKey: string; contactsKey: string; activitiesKey?: string; reviewsKey?: string; pitchKey?: string; statusKey?: string }
 ): Promise<{ success: boolean; pageId?: string; error?: string }> {
     const token = notionToken.trim();
     const dbId = databaseId.trim();
@@ -307,9 +312,19 @@ export async function exportCustomVenueToNotion(
                         },
                     ],
                 },
-                ...(propertyKeys.statusKey && venue.status ? {
+                ...(propertyKeys.activitiesKey && venue.activities ? {
+                    [propertyKeys.activitiesKey]: {
+                        rich_text: [{ text: { content: venue.activities.substring(0, 2000) } }]
+                    }
+                } : {}),
+                ...(propertyKeys.reviewsKey && venue.reviews ? {
+                    [propertyKeys.reviewsKey]: {
+                        rich_text: [{ text: { content: venue.reviews.substring(0, 2000) } }]
+                    }
+                } : {}),
+                ...(propertyKeys.statusKey && (venue as any).status ? {
                     [propertyKeys.statusKey]: {
-                        rich_text: [{ text: { content: venue.status.substring(0, 2000) } }]
+                        rich_text: [{ text: { content: (venue as any).status.substring(0, 2000) } }]
                     }
                 } : {}),
                 ...(propertyKeys.pitchKey && venue.pitch ? {

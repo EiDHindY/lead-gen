@@ -29,6 +29,8 @@ export async function POST(req: NextRequest) {
         const propertyKeys = {
             venueKey: discovery.venueKey!,
             contactsKey: discovery.contactsKey!,
+            activitiesKey: discovery.activitiesKey,
+            reviewsKey: discovery.reviewsKey,
             pitchKey: discovery.pitchKey,
             statusKey: discovery.statusKey,
         };
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
         const dataRows: string[][] = [];
 
         // Header keywords to skip
-        const headerKeywords = ["venue", "location", "contacts", "personnel", "status", "pitch", "link"];
+        const headerKeywords = ["venue", "location", "contacts", "personnel", "status", "pitch", "link", "activity", "activities", "review", "reviews"];
 
         // Smart separator detection: matches lines like "---|---|---", "| --- | --- |", ":---:|:---:", etc.
         const isSeparatorLine = (line: string) =>
@@ -106,6 +108,39 @@ export async function POST(req: NextRequest) {
             // Cleanup helper
             const clean = (text: string) => text.replace(/<br\s*\/?>/gi, "\n").replace(/\*\*/g, "").trim();
 
+            // Split Activity & Reviews helper
+            const splitActivityReviews = (text: string) => {
+                const activitiesMarker = "Activities:";
+                const reviewsMarker = "Reviews:";
+                
+                let activities = "";
+                let reviews = "";
+
+                const upperText = text.replace(/<br\s*\/?>/gi, "\n").replace(/\*\*/g, "");
+                
+                const actIdx = upperText.indexOf(activitiesMarker);
+                const revIdx = upperText.indexOf(reviewsMarker);
+
+                if (actIdx !== -1 && revIdx !== -1) {
+                    if (actIdx < revIdx) {
+                        activities = upperText.substring(actIdx + activitiesMarker.length, revIdx).trim();
+                        reviews = upperText.substring(revIdx + reviewsMarker.length).trim();
+                    } else {
+                        reviews = upperText.substring(revIdx + reviewsMarker.length, actIdx).trim();
+                        activities = upperText.substring(actIdx + activitiesMarker.length).trim();
+                    }
+                } else if (actIdx !== -1) {
+                    activities = upperText.substring(actIdx + activitiesMarker.length).trim();
+                } else if (revIdx !== -1) {
+                    reviews = upperText.substring(revIdx + reviewsMarker.length).trim();
+                } else {
+                    // Fallback: if no markers, put everything in activities
+                    activities = upperText.trim();
+                }
+
+                return { activities, reviews };
+            };
+
             // Link extraction helper
             const extractLink = (text: string) => {
                 const mdLinkMatch = text.match(/\[.*?\]\((https?:\/\/.*?)\)/);
@@ -116,6 +151,7 @@ export async function POST(req: NextRequest) {
 
             const cell0 = row[0] || "";
             const cell1 = row[1] || "";
+            const cell2 = row[2] || "";
 
             const hasLink = cell0.includes("http");
             const hasBr = /<br\s*\/?>/i.test(cell0);
@@ -124,13 +160,15 @@ export async function POST(req: NextRequest) {
                 // 1-Row Format
                 const link = extractLink(cell0);
                 const nameAndAddress = clean(cell0.replace(/\[.*?\]\(.*?\)/g, "").replace(/https?:\/\/[^\s|)]+/g, ""));
+                const { activities, reviews } = splitActivityReviews(cell2);
 
                 parsedVenues.push({
                     venueAndLocation: nameAndAddress,
                     contactsAndPersonnel: clean(cell1),
                     link: link || undefined,
-                    status: row[2] ? clean(row[2]) : undefined,
-                    pitch: row[3] ? clean(row[3]) : undefined,
+                    activities,
+                    reviews,
+                    pitch: row[3] && !row[3].toLowerCase().includes("found") ? clean(row[3]) : undefined,
                 });
                 i++;
             } else {
@@ -142,22 +180,29 @@ export async function POST(req: NextRequest) {
                     const link = extractLink(nextRow[0]);
                     const phone = clean(cell1);
                     const personnel = clean(nextRow[1]);
+                    
+                    // In 2-row format, where are activities/reviews?
+                    // Usually cell2 of the first row.
+                    const { activities, reviews } = splitActivityReviews(cell2);
 
                     parsedVenues.push({
                         venueAndLocation: venueName,
                         contactsAndPersonnel: `${phone}${personnel ? `\n${personnel}` : ""}`,
                         link: link || undefined,
-                        status: row[2] ? clean(row[2]) : undefined,
-                        pitch: row[3] ? clean(row[3]) : undefined,
+                        activities,
+                        reviews,
+                        pitch: row[3] && !row[3].toLowerCase().includes("found") ? clean(row[3]) : undefined,
                     });
                     i += 2;
                 } else {
                     // Single row without link
+                    const { activities, reviews } = splitActivityReviews(cell2);
                     parsedVenues.push({
                         venueAndLocation: clean(cell0),
                         contactsAndPersonnel: clean(cell1),
-                        status: row[2] ? clean(row[2]) : undefined,
-                        pitch: row[3] ? clean(row[3]) : undefined,
+                        activities,
+                        reviews,
+                        pitch: row[3] && !row[3].toLowerCase().includes("found") ? clean(row[3]) : undefined,
                     });
                     i++;
                 }
