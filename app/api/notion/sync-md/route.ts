@@ -6,9 +6,10 @@ console.log(`[sync-md] Server instance started at: ${new Date().toISOString()}`)
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { markdownText, integrationToken, databaseId } = body;
+        const { markdownText, integrationToken, databaseId, areaId } = body;
         const token = integrationToken?.trim();
         const dbId = databaseId?.trim();
+        const aId = areaId?.trim();
 
         if (!markdownText || !token || !dbId) {
             return NextResponse.json(
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
             reviewsKey: discovery.reviewsKey,
             pitchKey: discovery.pitchKey,
             statusKey: discovery.statusKey,
+            areaKey: discovery.areaKey,
         };
 
         // 1. Extract Valid Data Rows
@@ -222,7 +224,7 @@ export async function POST(req: NextRequest) {
 
         for (const venue of parsedVenues) {
             console.log(`[sync-md] Exporting: ${venue.venueAndLocation.substring(0, 50)}...`);
-            const res = await exportCustomVenueToNotion(token, dbId, venue, propertyKeys);
+            const res = await exportCustomVenueToNotion(token, dbId, venue, propertyKeys, aId);
             if (res.success) {
                 console.log(`[sync-md] Export success: ${res.pageId}`);
                 exportedCount++;
@@ -237,6 +239,7 @@ export async function POST(req: NextRequest) {
             success: true,
             totalFound: parsedVenues.length,
             exportedCount,
+            discoveredKeys: propertyKeys,
             errors: errors.length > 0 ? errors : undefined,
         });
 

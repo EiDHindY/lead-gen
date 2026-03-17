@@ -5,6 +5,7 @@ import { useState } from "react";
 export default function NotionPage() {
   const [token, setToken] = useState("");
   const [databaseId, setDatabaseId] = useState("");
+  const [areaId, setAreaId] = useState("");
   const [markdownData, setMarkdownData] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -14,7 +15,8 @@ export default function NotionPage() {
     message: string;
     exportedCount?: number;
     totalFound?: number;
-    errors?: string[]
+    errors?: string[];
+    discoveredKeys?: Record<string, string>;
   } | null>(null);
 
   const checkConnection = async () => {
@@ -62,6 +64,7 @@ export default function NotionPage() {
         body: JSON.stringify({
           integrationToken: token.trim(),
           databaseId: databaseId.trim(),
+          areaId: areaId.trim(),
           markdownText: markdownData
         })
       });
@@ -77,7 +80,8 @@ export default function NotionPage() {
         message: `Successfully processed!`,
         exportedCount: data.exportedCount,
         totalFound: data.totalFound,
-        errors: data.errors
+        errors: data.errors,
+        discoveredKeys: data.discoveredKeys
       });
 
       // Clear data on success if it worked
@@ -107,7 +111,7 @@ export default function NotionPage() {
 
         <div className="glass-card p-6 flex flex-col gap-6">
           <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-muted mb-2">Integration Token</label>
                 <input
@@ -128,6 +132,23 @@ export default function NotionPage() {
                   className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-primary transition-colors"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-muted mb-2">Area Page ID (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 19e982d3..."
+                  value={areaId}
+                  onChange={(e) => setAreaId(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="bg-primary/5 border border-primary/10 rounded-lg p-3 text-xs text-primary/80 flex gap-2 items-start">
+              <span>💡</span>
+              <p>
+                <strong>Pro Tip:</strong> Use the <strong>Master Database ID</strong> to sync. If you provide an <strong>Area Page ID</strong>, we'll automatically link every row to that Area for you!
+              </p>
             </div>
 
             <div className="flex justify-end">
@@ -162,6 +183,14 @@ export default function NotionPage() {
               {result ? (
                 <div className={`text-sm ${result.success ? "text-green-400" : "text-red-400"}`}>
                   {result.message} {result.success && result.totalFound !== undefined && `(${result.exportedCount}/${result.totalFound} synced)`}
+                  {result.success && result.discoveredKeys && (
+                    <div className="mt-1 text-[10px] opacity-60 font-mono">
+                      Keys: {Object.entries(result.discoveredKeys)
+                        .filter(([_, v]) => v)
+                        .map(([k, v]) => `${k.replace("Key", "")}:${v}`)
+                        .join(", ")}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-sm text-muted">Awaiting sync...</div>

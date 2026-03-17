@@ -1,5 +1,5 @@
-// Notion API helper — Export venues to Notion databases
-// Each campaign can have its own Notion workspace/database
+import fs from "fs";
+import path from "path";
 
 interface NotionVenueData {
     venueName: string;
@@ -204,6 +204,7 @@ export async function discoverPropertyNames(
     reviewsKey?: string;
     pitchKey?: string;
     statusKey?: string;
+    areaKey?: string;
     allProperties?: string[];
     error?: string;
 }> {
@@ -227,8 +228,12 @@ export async function discoverPropertyNames(
         const data = await res.json();
         const properties = data.properties || {};
         const propertyNames = Object.keys(properties);
+        const propertyDetails = propertyNames.map(name => ({
+            name,
+            type: properties[name].type
+        }));
 
-        console.log("[notion] All property names found:", propertyNames);
+        console.log("[notion] All property details found:", JSON.stringify(propertyDetails, null, 2));
 
         // Find matching properties using case-insensitive matching
         // Use multiple keywords per field to find the best match
@@ -250,8 +255,19 @@ export async function discoverPropertyNames(
         const reviewsKey = findProp(["reviews"]) || findProp(["review"]);
         const pitchKey = findProp(["pitch", "recommended"]) || findProp(["recommended"]);
         const statusKey = findProp(["status", "notes", "task_notes"]) || findProp(["notes"]);
+        let areaKey = findProp(["area"]) || findProp(["leads"]);
+
+        // Fallback: If no "Area" found by name, look for ANY relation property
+        if (!areaKey) {
+            const firstRelation = propertyNames.find(name => properties[name].type === "relation");
+            if (firstRelation) {
+                console.log(`[notion] No "Area" found by name, but found a relation property: "${firstRelation}". Using it.`);
+                areaKey = firstRelation;
+            }
+        }
 
         if (!venueKey || !contactsKey) {
+            console.error(`[notion] Missing required properties. Available: [${propertyNames.join(", ")}]`);
             return {
                 success: false,
                 allProperties: propertyNames,
@@ -259,9 +275,23 @@ export async function discoverPropertyNames(
             };
         }
 
-        console.log(`[notion] Discovered properties: venue="${venueKey}", contacts="${contactsKey}", activities="${activitiesKey}", reviews="${reviewsKey}", pitch="${pitchKey}", status="${statusKey}"`);
+        if (!areaKey) {
+            console.warn(`[notion] areaKey NOT found. Available: [${propertyNames.join(", ")}]`);
+        }
 
-        return { success: true, venueKey, contactsKey, activitiesKey, reviewsKey, pitchKey, statusKey, allProperties: propertyNames };
+        console.log("[notion] All property names found:", propertyNames);
+        console.log(`[notion] Matching results: venue="${venueKey}", contacts="${contactsKey}", area="${areaKey}"`);
+
+        // Write to a debug file so I can read it
+        try {
+            const debugPath = "/home/dod/projects/lola/lead_gen/notion_debug.json";
+            fs.writeFileSync(debugPath, JSON.stringify({
+                found: propertyDetails,
+                matching: { venueKey, contactsKey, areaKey }
+            }, null, 2));
+        } catch (e) {}
+
+        return { success: true, venueKey, contactsKey, activitiesKey, reviewsKey, pitchKey, statusKey, areaKey, allProperties: propertyNames };
     } catch (err: any) {
         return { success: false, error: err.message };
     }
@@ -275,7 +305,8 @@ export async function exportCustomVenueToNotion(
     notionToken: string,
     databaseId: string,
     venue: CustomNotionVenue,
-    propertyKeys: { venueKey: string; contactsKey: string; activitiesKey?: string; reviewsKey?: string; pitchKey?: string; statusKey?: string }
+    propertyKeys: { venueKey: string; contactsKey: string; activitiesKey?: string; reviewsKey?: string; pitchKey?: string; statusKey?: string; areaKey?: string },
+    areaId?: string
 ): Promise<{ success: boolean; pageId?: string; error?: string }> {
     const token = notionToken.trim();
     const dbId = databaseId.trim();
@@ -332,11 +363,23 @@ export async function exportCustomVenueToNotion(
                         rich_text: [{ text: { content: venue.pitch.substring(0, 2000) } }]
                     }
                 } : {}),
+                ...(areaId ? (() => {
+                    // The Notion API doesn't expose relation properties in discovery for some databases.
+                    // We bypass discovery and directly use the property name from Notion.
+                    // Try the discovered areaKey first, fallback to "Areas" (exact name from user's DB).
+                    const relPropName = propertyKeys.areaKey || "Areas";
+                    return {
+                        [relPropName]: {
+                            relation: [{ id: areaId }]
+                        }
+                    };
+                })() : {}),
 
             },
         };
 
         console.log(`[notion] Sending request to Notion:`, JSON.stringify(body, null, 2));
+        console.log(`[notion] Area ID being sent: ${areaId}, Area Key: ${propertyKeys.areaKey}`);
 
         const res = await fetch("https://api.notion.com/v1/pages", {
             method: "POST",

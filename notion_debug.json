@@ -1,0 +1,60 @@
+{
+  "found": [
+    {
+      "name": "Try_again_reason",
+      "type": "rich_text"
+    },
+    {
+      "name": "Reviews",
+      "type": "rich_text"
+    },
+    {
+      "name": "Venue_Types",
+      "type": "select"
+    },
+    {
+      "name": "Done?",
+      "type": "checkbox"
+    },
+    {
+      "name": "Activities",
+      "type": "rich_text"
+    },
+    {
+      "name": "Contacts",
+      "type": "rich_text"
+    },
+    {
+      "name": "Sale?",
+      "type": "checkbox"
+    },
+    {
+      "name": "No_sale_reason",
+      "type": "rich_text"
+    },
+    {
+      "name": "Try Again?",
+      "type": "checkbox"
+    },
+    {
+      "name": "Task?",
+      "type": "checkbox"
+    },
+    {
+      "name": "Task_Date",
+      "type": "date"
+    },
+    {
+      "name": "Task_notes",
+      "type": "rich_text"
+    },
+    {
+      "name": "Venue_Location",
+      "type": "title"
+    }
+  ],
+  "matching": {
+    "venueKey": "Venue_Location",
+    "contactsKey": "Contacts"
+  }
+}
