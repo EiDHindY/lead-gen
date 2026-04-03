@@ -5,48 +5,64 @@
       "type": "rich_text"
     },
     {
-      "name": "Reviews",
+      "name": "No_sale_reason",
       "type": "rich_text"
+    },
+    {
+      "name": "Done",
+      "type": "checkbox"
+    },
+    {
+      "name": "done?",
+      "type": "status"
+    },
+    {
+      "name": "Task_notes",
+      "type": "rich_text"
+    },
+    {
+      "name": "Tasks",
+      "type": "checkbox"
+    },
+    {
+      "name": "Try_again",
+      "type": "status"
+    },
+    {
+      "name": "sale?",
+      "type": "status"
+    },
+    {
+      "name": "add to no answer",
+      "type": "button"
+    },
+    {
+      "name": "Sales",
+      "type": "checkbox"
     },
     {
       "name": "Venue_Types",
       "type": "select"
     },
     {
-      "name": "Done?",
-      "type": "checkbox"
-    },
-    {
-      "name": "Activities",
-      "type": "rich_text"
+      "name": "task?",
+      "type": "status"
     },
     {
       "name": "Contacts",
       "type": "rich_text"
     },
     {
-      "name": "Sale?",
-      "type": "checkbox"
-    },
-    {
-      "name": "No_sale_reason",
-      "type": "rich_text"
-    },
-    {
-      "name": "Try Again?",
-      "type": "checkbox"
-    },
-    {
-      "name": "Task?",
-      "type": "checkbox"
+      "name": "no answer?",
+      "type": "status"
     },
     {
       "name": "Task_Date",
       "type": "date"
     },
     {
-      "name": "Task_notes",
-      "type": "rich_text"
+      "name": "Try again",
+      "type": "checkbox"
     },
     {
       "name": "Venue_Location",

@@ -407,3 +407,97 @@ export async function exportCustomVenueToNotion(
         return { success: false, error: err.message };
     }
 }
+
+// ── TLC Coffee ──
+
+export interface CoffeeNotionVenue {
+    venueAndLocation: string;
+    contactsAndPersonnel: string;
+    link?: string;
+}
+
+/**
+ * Export a single TLC Coffee venue to Notion.
+ * Simpler than the Activity export — only writes Venue_Location + Contacts.
+ */
+export async function exportCoffeeVenueToNotion(
+    notionToken: string,
+    databaseId: string,
+    venue: CoffeeNotionVenue,
+    propertyKeys: { venueKey: string; contactsKey: string; areaKey?: string },
+    areaId?: string
+): Promise<{ success: boolean; pageId?: string; error?: string }> {
+    const token = notionToken.trim();
+    const dbId = databaseId.trim();
+
+    try {
+        const body = {
+            parent: { database_id: dbId },
+            properties: {
+                [propertyKeys.venueKey]: {
+                    title: (() => {
+                        const blocks: any[] = [
+                            { text: { content: venue.venueAndLocation.substring(0, 2000) } },
+                        ];
+                        if (venue.link) {
+                            blocks.push(
+                                { text: { content: "\n" } },
+                                {
+                                    text: {
+                                        content: venue.link.substring(0, 2000),
+                                        link: { url: venue.link },
+                                    },
+                                }
+                            );
+                        }
+                        return blocks;
+                    })(),
+                },
+                [propertyKeys.contactsKey]: {
+                    rich_text: [
+                        {
+                            text: {
+                                content: venue.contactsAndPersonnel.substring(0, 2000),
+                            },
+                        },
+                    ],
+                },
+                ...(areaId ? (() => {
+                    const relPropName = propertyKeys.areaKey || "Areas";
+                    return {
+                        [relPropName]: {
+                            relation: [{ id: areaId }]
+                        }
+                    };
+                })() : {}),
+            },
+        };
+
+        console.log(`[notion][coffee] Sending request:`, JSON.stringify(body, null, 2));
+
+        const res = await fetch("https://api.notion.com/v1/pages", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "Notion-Version": "2022-06-28",
+            },
+            cache: "no-store",
+            body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+            const body = await res.json();
+            console.error("[notion][coffee] API Error:", JSON.stringify(body, null, 2));
+            return {
+                success: false,
+                error: body.message || `Notion API error: ${res.status}`,
+            };
+        }
+
+        const data = await res.json();
+        return { success: true, pageId: data.id };
+    } catch (err: any) {
+        return { success: false, error: err.message };
+    }
+}
