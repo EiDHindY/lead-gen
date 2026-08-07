@@ -190,8 +190,22 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Check if the URL specifies a particular tab via 'gid'
+        const gidMatch = googleSheetUrl?.match(/gid=([0-9]+)/);
+        let sheet;
+        
+        if (gidMatch && gidMatch[1]) {
+            const gid = parseInt(gidMatch[1], 10);
+            sheet = doc.sheetsById[gid];
+            if (!sheet) {
+                return NextResponse.json({ success: false, error: `Tab with ID ${gid} not found in this spreadsheet.` }, { status: 400 });
+            }
+        } else {
+            // Default to the first tab
+            sheet = doc.sheetsByIndex[0]; 
+        }
+
         const parsedVenues = parseActivityVenues(dataRows);
-        const sheet = doc.sheetsByIndex[0]; // Append to first tab
         
         // Ensure headers exist
         await sheet.loadHeaderRow().catch(async () => {
