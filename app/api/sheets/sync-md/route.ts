@@ -170,6 +170,12 @@ export async function POST(req: NextRequest) {
         const sheetIdMatch = sheetId.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
         if (sheetIdMatch && sheetIdMatch[1]) {
             extractedSheetId = sheetIdMatch[1];
+        } else {
+            // Fallback: If they pasted just the ID with /edit?gid=...
+            const fallbackMatch = sheetId.match(/^([a-zA-Z0-9-_]+)/);
+            if (fallbackMatch && fallbackMatch[1]) {
+                extractedSheetId = fallbackMatch[1];
+            }
         }
 
         const doc = new GoogleSpreadsheet(extractedSheetId, auth);
