@@ -228,26 +228,13 @@ export async function POST(req: NextRequest) {
 
         const errors: string[] = [];
         let exportedCount = 0;
-        
-        // Track the row numbers where we insert the hyperlinks so we can remove the underline
-        const hyperlinkedRowIndices: number[] = [];
 
         for (const venue of parsedVenues) {
             try {
                 let venueNameCell = venue.venueAndLocation;
                 if (venue.link) {
-                    const parts = venue.venueAndLocation.split('\n');
-                    const venueName = parts[0] ? parts[0].trim() : '';
-                    const address = parts.length > 1 ? parts.slice(1).join(', ').trim() : '';
-                    
-                    const safeName = venueName.replace(/"/g, '""'); // Escape quotes
-                    const safeAddress = address.replace(/"/g, '""'); // Escape quotes
-                    
-                    if (address) {
-                        venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}" & CHAR(10) & "${safeAddress}")`;
-                    } else {
-                        venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}")`;
-                    }
+                    // Send the raw URL so Google's AI-enhanced table can convert it to a Place Chip
+                    venueNameCell = venue.link;
                 }
 
                 // Extract Phone and Contact Name
@@ -277,41 +264,15 @@ export async function POST(req: NextRequest) {
                 }
 
                 // Insert Row: Everything in one cell per column
-                const row1 = await sheet.addRow({
+                await sheet.addRow({
                     Venue_Location: venueNameCell,
                     Phone: phone,
                     Contacts: contactName
                 });
                 
-                if (venue.link) {
-                    hyperlinkedRowIndices.push(row1.rowNumber - 1); // 0-indexed for getCell
-                }
-                
                 exportedCount++;
             } catch (err: any) {
                  errors.push(`Failed on ${venue.venueAndLocation.substring(0,20)}: ${err.message}`);
-            }
-        }
-        
-        // Post-processing: Remove underlines from the hyperlinks
-        if (hyperlinkedRowIndices.length > 0) {
-            try {
-                const minRow = Math.min(...hyperlinkedRowIndices);
-                const maxRow = Math.max(...hyperlinkedRowIndices);
-                
-                // Load only the cells in Column A that we just added
-                await sheet.loadCells(`A${minRow + 1}:A${maxRow + 1}`);
-                
-                for (const rowIndex of hyperlinkedRowIndices) {
-                    const cell = sheet.getCell(rowIndex, 0);
-                    // Explicitly set underline to false without spreading to ensure it applies
-                    cell.textFormat = { underline: false };
-                }
-                
-                // Save the formatting changes back to Google Sheets
-                await sheet.saveUpdatedCells();
-            } catch (formatErr) {
-                console.error("Failed to format underlines:", formatErr);
             }
         }
 
