@@ -203,6 +203,9 @@ export async function POST(req: NextRequest) {
 
         const errors: string[] = [];
         let exportedCount = 0;
+        
+        // Track the row numbers where we insert the hyperlinks so we can remove the underline
+        const hyperlinkedRowIndices: number[] = [];
 
         for (const venue of parsedVenues) {
             try {
@@ -223,7 +226,7 @@ export async function POST(req: NextRequest) {
                 }
 
                 // Insert Row 1: The hyperlinked name and primary data
-                await sheet.addRow({
+                const row1 = await sheet.addRow({
                     Venue_Location: venueNameCell,
                     Contacts: contactLine1,
                     Link: venue.link,
@@ -231,6 +234,10 @@ export async function POST(req: NextRequest) {
                     Reviews: venue.reviews,
                     Status: venue.status
                 });
+                
+                if (venue.link) {
+                    hyperlinkedRowIndices.push(row1.rowNumber - 1); // 0-indexed for getCell
+                }
                 
                 // Insert Row 2: The address and secondary contact info
                 if (address || contactLine2) {
@@ -243,6 +250,29 @@ export async function POST(req: NextRequest) {
                 exportedCount++;
             } catch (err: any) {
                  errors.push(`Failed on ${venue.venueAndLocation.substring(0,20)}: ${err.message}`);
+            }
+        }
+        
+        // Post-processing: Remove underlines from the hyperlinks
+        if (hyperlinkedRowIndices.length > 0) {
+            try {
+                const minRow = Math.min(...hyperlinkedRowIndices);
+                const maxRow = Math.max(...hyperlinkedRowIndices);
+                
+                // Load only the cells in Column A that we just added
+                await sheet.loadCells(`A${minRow + 1}:A${maxRow + 1}`);
+                
+                for (const rowIndex of hyperlinkedRowIndices) {
+                    const cell = sheet.getCell(rowIndex, 0);
+                    // Remove the underline formatting
+                    cell.textFormat = { ...cell.textFormat, underline: false, link: undefined };
+                }
+                
+                // Save the formatting changes back to Google Sheets
+                await sheet.saveUpdatedCells();
+            } catch (formatErr) {
+                console.error("Failed to format underlines:", formatErr);
+                // We don't throw here because the data sync was successful
             }
         }
 
