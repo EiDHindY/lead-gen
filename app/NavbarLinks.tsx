@@ -9,6 +9,7 @@ export default function NavbarLinks() {
 
     const links = [
         { href: "/", label: "Notion", strikethrough: false },
+        { href: "/sheets", label: "Google Sheets", strikethrough: false },
     ];
 
     return (
