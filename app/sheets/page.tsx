@@ -33,7 +33,8 @@ export default function GoogleSheetsPage() {
 
       const data = await res.json();
       if (data.success) {
-        setResult({ success: true, message: `Connected to "${data.sheetTitle}" successfully! ✅` });
+        const sheetDisplay = data.tabTitle ? `"${data.sheetTitle}" (Tab: ${data.tabTitle})` : `"${data.sheetTitle}"`;
+        setResult({ success: true, message: `Connected to ${sheetDisplay} successfully! ✅` });
       } else {
         setResult({ success: false, message: `Connection failed: ${data.error} ❌` });
       }

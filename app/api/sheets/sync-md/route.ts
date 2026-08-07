@@ -186,23 +186,6 @@ export async function POST(req: NextRequest) {
              return NextResponse.json({ error: `Could not access spreadsheet. Did you share it with ${clientEmail}? Error: ${e.message}` }, { status: 403 });
         }
 
-        if (validateOnly) {
-            return NextResponse.json({ success: true, sheetTitle: doc.title });
-        }
-
-        if (!markdownText) {
-             return NextResponse.json({ error: "Missing markdownText" }, { status: 400 });
-        }
-
-        const dataRows = extractDataRows(markdownText);
-        
-        if (dataRows.length === 0) {
-            return NextResponse.json(
-                { error: "No data rows found in Markdown. Please check your table format." },
-                { status: 400 }
-            );
-        }
-
         // Check if the URL specifies a particular tab via 'gid'
         const gidMatch = sheetId?.match(/gid=([0-9]+)/);
         let sheet;
@@ -216,6 +199,23 @@ export async function POST(req: NextRequest) {
         } else {
             // Default to the first tab
             sheet = doc.sheetsByIndex[0]; 
+        }
+
+        if (validateOnly) {
+            return NextResponse.json({ success: true, sheetTitle: doc.title, tabTitle: sheet.title });
+        }
+
+        if (!markdownText) {
+             return NextResponse.json({ error: "Missing markdownText" }, { status: 400 });
+        }
+
+        const dataRows = extractDataRows(markdownText);
+        
+        if (dataRows.length === 0) {
+            return NextResponse.json(
+                { error: "No data rows found in Markdown. Please check your table format." },
+                { status: 400 }
+            );
         }
 
         const parsedVenues = parseActivityVenues(dataRows);
