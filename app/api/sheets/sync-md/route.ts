@@ -206,33 +206,40 @@ export async function POST(req: NextRequest) {
 
         for (const venue of parsedVenues) {
             try {
-                let venueNameCell = venue.venueAndLocation;
+                // Split the name and address
+                const parts = venue.venueAndLocation.split('\n');
+                const venueName = parts[0] ? parts[0].trim() : '';
+                const address = parts.length > 1 ? parts.slice(1).join(', ').trim() : '';
                 
+                // Split the contacts (e.g. Phone vs Personnel)
+                const contactParts = venue.contactsAndPersonnel.split('\n');
+                const contactLine1 = contactParts[0] ? contactParts[0].trim() : '';
+                const contactLine2 = contactParts.length > 1 ? contactParts.slice(1).join(', ').trim() : '';
+                
+                let venueNameCell = venueName;
                 if (venue.link) {
-                    // Split the name and address (usually separated by newline from the markdown <br>)
-                    const parts = venue.venueAndLocation.split('\n');
-                    const venueName = parts[0] ? parts[0].trim() : '';
-                    const address = parts.length > 1 ? parts.slice(1).join(', ').trim() : '';
-                    
                     const safeName = venueName.replace(/"/g, '""'); // Escape quotes
-                    const safeAddress = address.replace(/"/g, '""'); // Escape quotes
-                    
-                    if (address) {
-                        // This formula makes ONLY the Venue Name clickable (with a pin), and puts the address underneath in plain text
-                        venueNameCell = `=HYPERLINK("${venue.link}", "📍 ${safeName}") & CHAR(10) & "${safeAddress}"`;
-                    } else {
-                        venueNameCell = `=HYPERLINK("${venue.link}", "📍 ${safeName}")`;
-                    }
+                    venueNameCell = `=HYPERLINK("${venue.link}", "📍 ${safeName}")`;
                 }
 
+                // Insert Row 1: The hyperlinked name and primary data
                 await sheet.addRow({
                     Venue_Location: venueNameCell,
-                    Contacts: venue.contactsAndPersonnel,
+                    Contacts: contactLine1,
                     Link: venue.link,
                     Activities: venue.activities,
                     Reviews: venue.reviews,
                     Status: venue.status
                 });
+                
+                // Insert Row 2: The address and secondary contact info
+                if (address || contactLine2) {
+                    await sheet.addRow({
+                        Venue_Location: address,
+                        Contacts: contactLine2,
+                    });
+                }
+                
                 exportedCount++;
             } catch (err: any) {
                  errors.push(`Failed on ${venue.venueAndLocation.substring(0,20)}: ${err.message}`);
