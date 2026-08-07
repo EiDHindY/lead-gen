@@ -238,6 +238,11 @@ export async function POST(req: NextRequest) {
                         else contactName = part.trim();
                     }
                 }
+                
+                // Prevent Google Sheets from treating phone numbers starting with + as formulas
+                if (phone && (phone.startsWith('+') || phone.startsWith('-') || phone.startsWith('='))) {
+                    phone = `'${phone}`;
+                }
 
                 // Insert Row: Everything in one cell per column
                 const row1 = await sheet.addRow({
