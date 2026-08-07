@@ -145,7 +145,7 @@ function parseActivityVenues(dataRows: string[][]): any[] {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { sheetId, validateOnly, markdownText, areaName } = body;
+        const { sheetId, validateOnly, markdownText } = body;
 
         if (!sheetId) {
             return NextResponse.json({ error: "Missing sheetId" }, { status: 400 });
@@ -228,17 +228,6 @@ export async function POST(req: NextRequest) {
 
         const errors: string[] = [];
         let exportedCount = 0;
-
-        // If user provided an Area Name, insert a visual separator row first
-        if (areaName && areaName.trim() !== "") {
-            try {
-                await sheet.addRow({
-                    Venue_Location: `━━━━━━━━━━ ${areaName.trim().toUpperCase()} ━━━━━━━━━━`
-                });
-            } catch (err: any) {
-                console.error("Failed to add area separator", err);
-            }
-        }
 
         for (const venue of parsedVenues) {
             try {

@@ -4,7 +4,6 @@ import { useState } from "react";
 
 export default function GoogleSheetsPage() {
   const [sheetId, setSheetId] = useState("");
-  const [areaName, setAreaName] = useState("");
   const [markdownData, setMarkdownData] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -61,8 +60,7 @@ export default function GoogleSheetsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sheetId: sheetId.trim(),
-          markdownText: markdownData,
-          areaName: areaName.trim()
+          markdownText: markdownData
         })
       });
 
@@ -107,23 +105,13 @@ export default function GoogleSheetsPage() {
         <div className="glass-card p-6 flex flex-col gap-6">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-muted mb-2">Google Sheet ID / URL</label>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-muted mb-2">Google Sheet ID</label>
                 <input
                   type="text"
                   placeholder="e.g. 1BxiMVs0XRYFgwnTE..."
                   value={sheetId}
                   onChange={(e) => setSheetId(e.target.value)}
-                  className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-green-500 transition-colors"
-                />
-              </div>
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-muted mb-2">Area Name (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. York, Chester..."
-                  value={areaName}
-                  onChange={(e) => setAreaName(e.target.value)}
                   className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-green-500 transition-colors"
                 />
               </div>
