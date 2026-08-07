@@ -208,10 +208,21 @@ export async function POST(req: NextRequest) {
             try {
                 let venueNameCell = venue.venueAndLocation;
                 
-                // If there's a link, convert the cell into a clickable Google Sheets formula
                 if (venue.link) {
-                    const safeLabel = venue.venueAndLocation.replace(/"/g, '""'); // Escape quotes for Sheets formula
-                    venueNameCell = `=HYPERLINK("${venue.link}", "${safeLabel}")`;
+                    // Split the name and address (usually separated by newline from the markdown <br>)
+                    const parts = venue.venueAndLocation.split('\n');
+                    const venueName = parts[0] ? parts[0].trim() : '';
+                    const address = parts.length > 1 ? parts.slice(1).join(', ').trim() : '';
+                    
+                    const safeName = venueName.replace(/"/g, '""'); // Escape quotes
+                    const safeAddress = address.replace(/"/g, '""'); // Escape quotes
+                    
+                    if (address) {
+                        // This formula makes ONLY the Venue Name clickable (with a pin), and puts the address underneath in plain text
+                        venueNameCell = `=HYPERLINK("${venue.link}", "📍 ${safeName}") & CHAR(10) & "${safeAddress}"`;
+                    } else {
+                        venueNameCell = `=HYPERLINK("${venue.link}", "📍 ${safeName}")`;
+                    }
                 }
 
                 await sheet.addRow({
