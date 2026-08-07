@@ -206,8 +206,16 @@ export async function POST(req: NextRequest) {
 
         for (const venue of parsedVenues) {
             try {
+                let venueNameCell = venue.venueAndLocation;
+                
+                // If there's a link, convert the cell into a clickable Google Sheets formula
+                if (venue.link) {
+                    const safeLabel = venue.venueAndLocation.replace(/"/g, '""'); // Escape quotes for Sheets formula
+                    venueNameCell = `=HYPERLINK("${venue.link}", "${safeLabel}")`;
+                }
+
                 await sheet.addRow({
-                    Venue_Location: venue.venueAndLocation,
+                    Venue_Location: venueNameCell,
                     Contacts: venue.contactsAndPersonnel,
                     Link: venue.link,
                     Activities: venue.activities,
