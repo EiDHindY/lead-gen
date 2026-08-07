@@ -165,7 +165,14 @@ export async function POST(req: NextRequest) {
             scopes: ["https://www.googleapis.com/auth/spreadsheets"],
         });
 
-        const doc = new GoogleSpreadsheet(sheetId, auth);
+        // Extract the actual ID if the user pasted a full URL
+        let extractedSheetId = sheetId;
+        const sheetIdMatch = sheetId.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+        if (sheetIdMatch && sheetIdMatch[1]) {
+            extractedSheetId = sheetIdMatch[1];
+        }
+
+        const doc = new GoogleSpreadsheet(extractedSheetId, auth);
         
         try {
             await doc.loadInfo(); 
@@ -191,7 +198,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Check if the URL specifies a particular tab via 'gid'
-        const gidMatch = googleSheetUrl?.match(/gid=([0-9]+)/);
+        const gidMatch = sheetId?.match(/gid=([0-9]+)/);
         let sheet;
         
         if (gidMatch && gidMatch[1]) {
