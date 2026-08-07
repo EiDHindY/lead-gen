@@ -246,7 +246,13 @@ export async function POST(req: NextRequest) {
                         const val = part.replace(/phone:/i, "").trim();
                         phone = phone ? `${phone}\n${val}` : val;
                     } else if (part.toLowerCase().includes("personnel:")) {
-                        const val = part.replace(/personnel:/i, "").trim();
+                        let val = part.replace(/personnel:/i, "").trim();
+                        
+                        // Smart split: If multiple people are comma-separated (e.g. "John - Owner, Jane - Manager")
+                        // this regex finds a comma that is followed by a capitalized Name and a hyphen, 
+                        // and replaces that comma with a newline to stack them perfectly.
+                        val = val.replace(/,\s+(?=[A-Z][\w\s&'-]+ -)/g, '\n');
+                        
                         contactName = contactName ? `${contactName}\n${val}` : val;
                     } else if (part.trim() !== "") {
                         // Fallback if labels are missing
