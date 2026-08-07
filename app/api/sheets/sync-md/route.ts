@@ -228,8 +228,7 @@ export async function POST(req: NextRequest) {
                 // Insert Row 1: The hyperlinked name and primary data
                 const row1 = await sheet.addRow({
                     Venue_Location: venueNameCell,
-                    Contacts: contactLine1,
-                    Link: venue.link
+                    Contacts: contactLine1
                 });
                 
                 if (venue.link) {
