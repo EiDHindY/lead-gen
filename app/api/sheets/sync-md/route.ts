@@ -222,17 +222,14 @@ export async function POST(req: NextRequest) {
                 let venueNameCell = venueName;
                 if (venue.link) {
                     const safeName = venueName.replace(/"/g, '""'); // Escape quotes
-                    venueNameCell = `=HYPERLINK("${venue.link}", "📍 ${safeName}")`;
+                    venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}")`; // Removed space after pushpin
                 }
 
                 // Insert Row 1: The hyperlinked name and primary data
                 const row1 = await sheet.addRow({
                     Venue_Location: venueNameCell,
                     Contacts: contactLine1,
-                    Link: venue.link,
-                    Activities: venue.activities,
-                    Reviews: venue.reviews,
-                    Status: venue.status
+                    Link: venue.link
                 });
                 
                 if (venue.link) {
@@ -264,15 +261,14 @@ export async function POST(req: NextRequest) {
                 
                 for (const rowIndex of hyperlinkedRowIndices) {
                     const cell = sheet.getCell(rowIndex, 0);
-                    // Remove the underline formatting
-                    cell.textFormat = { ...cell.textFormat, underline: false, link: undefined };
+                    // Explicitly set underline to false without spreading to ensure it applies
+                    cell.textFormat = { underline: false };
                 }
                 
                 // Save the formatting changes back to Google Sheets
                 await sheet.saveUpdatedCells();
             } catch (formatErr) {
                 console.error("Failed to format underlines:", formatErr);
-                // We don't throw here because the data sync was successful
             }
         }
 
