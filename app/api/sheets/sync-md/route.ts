@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
         // Ensure headers exist
         await sheet.loadHeaderRow().catch(async () => {
             // If the sheet is completely blank, we initialize the headers
-            await sheet.setHeaderRow(["Venue_Location", "Contacts"]);
+            await sheet.setHeaderRow(["Venue_Location", "Phone", "Contacts"]);
         });
 
         const errors: string[] = [];
@@ -217,17 +217,33 @@ export async function POST(req: NextRequest) {
                     const safeAddress = address.replace(/"/g, '""'); // Escape quotes
                     
                     if (address) {
-                        // Put everything INSIDE the HYPERLINK function so the cell remains clickable
                         venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}" & CHAR(10) & "${safeAddress}")`;
                     } else {
                         venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}")`;
                     }
                 }
 
+                // Extract Phone and Contact Name
+                let phone = "";
+                let contactName = "";
+                const contactParts = venue.contactsAndPersonnel.split('\n');
+                for (const part of contactParts) {
+                    if (part.toLowerCase().includes("phone:")) {
+                        phone = part.replace(/phone:/i, "").trim();
+                    } else if (part.toLowerCase().includes("personnel:")) {
+                        contactName = part.replace(/personnel:/i, "").trim();
+                    } else if (part.trim() !== "") {
+                        // Fallback if labels are missing
+                        if (/\d/.test(part)) phone = part.trim();
+                        else contactName = part.trim();
+                    }
+                }
+
                 // Insert Row: Everything in one cell per column
                 const row1 = await sheet.addRow({
                     Venue_Location: venueNameCell,
-                    Contacts: venue.contactsAndPersonnel
+                    Phone: phone,
+                    Contacts: contactName
                 });
                 
                 if (venue.link) {
