@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Google Maps Copy Format",
+  "version": "1.0",
+  "description": "Adds a Copy Format button to the Google Maps share dialog.",
+  "permissions": [
+    "clipboardWrite"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.google.com/maps/*",
+        "*://*.google.com.au/maps/*",
+        "*://*.google.co.uk/maps/*",
+        "*://*.google.ca/maps/*",
+        "*://*.google.co.in/maps/*"
+      ],
+      "js": ["content.js"]
+    }
+  ]
+}

@@ -9,8 +9,6 @@ export default function NavbarLinks() {
 
     const links = [
         { href: "/", label: "Notion", strikethrough: false },
-        { href: "/dashboard", label: "Dashboard", strikethrough: true },
-        { href: "/campaigns", label: "Campaigns", strikethrough: true },
     ];
 
     return (

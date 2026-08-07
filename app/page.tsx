@@ -5,10 +5,7 @@ import { useState } from "react";
 export default function NotionPage() {
   const [token, setToken] = useState("");
   const [databaseId, setDatabaseId] = useState("");
-  const [areaId, setAreaId] = useState("");
   const [markdownData, setMarkdownData] = useState("");
-  const [campaign, setCampaign] = useState<"tlc-activity" | "tlc-coffee">("tlc-activity");
-
   const [isLoading, setIsLoading] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [result, setResult] = useState<{
@@ -65,9 +62,8 @@ export default function NotionPage() {
         body: JSON.stringify({
           integrationToken: token.trim(),
           databaseId: databaseId.trim(),
-          areaId: areaId.trim(),
           markdownText: markdownData,
-          campaign
+          campaign: "tlc-activity"
         })
       });
 
@@ -111,32 +107,6 @@ export default function NotionPage() {
           </div>
         </div>
 
-        {/* ── Campaign Toggle ── */}
-        <div className="glass-card p-2 flex gap-1 w-fit">
-          <button
-            onClick={() => setCampaign("tlc-activity")}
-            className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
-              campaign === "tlc-activity"
-                ? "bg-gradient-to-r from-primary to-primary-dim text-white shadow-lg shadow-primary/25"
-                : "text-muted hover:text-foreground hover:bg-surface-hover"
-            }`}
-          >
-            <span>🏃</span>
-            TLC Activity
-          </button>
-          <button
-            onClick={() => setCampaign("tlc-coffee")}
-            className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
-              campaign === "tlc-coffee"
-                ? "bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-600/25"
-                : "text-muted hover:text-foreground hover:bg-surface-hover"
-            }`}
-          >
-            <span>☕</span>
-            TLC Coffee
-          </button>
-        </div>
-
         <div className="glass-card p-6 flex flex-col gap-6">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -160,22 +130,12 @@ export default function NotionPage() {
                   className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-primary transition-colors"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-muted mb-2">Area Page ID (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 19e982d3..."
-                  value={areaId}
-                  onChange={(e) => setAreaId(e.target.value)}
-                  className="w-full bg-background border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:border-primary transition-colors"
-                />
-              </div>
             </div>
 
             <div className="bg-primary/5 border border-primary/10 rounded-lg p-3 text-xs text-primary/80 flex gap-2 items-start">
               <span>💡</span>
               <p>
-                <strong>Pro Tip:</strong> Use the <strong>Master Database ID</strong> to sync. If you provide an <strong>Area Page ID</strong>, we'll automatically link every row to that Area for you!
+                <strong>Pro Tip:</strong> Use the <strong>Master Database ID</strong> to sync.
               </p>
             </div>
 
@@ -197,15 +157,11 @@ export default function NotionPage() {
 
           <div>
             <label className="block text-sm font-medium text-muted mb-2">
-              Markdown Data {campaign === "tlc-coffee" ? "(Venue & Contacts)" : "(2-Row Format)"}
+              Markdown Data (2-Row Format)
             </label>
             <textarea
               rows={10}
-              placeholder={
-                campaign === "tlc-coffee"
-                  ? "Cafe Bartique <br> https://maps.app.goo.gl/... | Phone: (404) 343-1780 <br> Personnel: Angela Ingram - Founder & Owner | N/A | Active"
-                  : "| Venue | Contacts | Activity & Reviews | Status |\n| Link | Personnel | | |"
-              }
+              placeholder={"| Venue | Contacts | Activity & Reviews | Status |\n| Link | Personnel | | |"}
               value={markdownData}
               onChange={(e) => setMarkdownData(e.target.value)}
               className="w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground font-mono text-sm focus:outline-none focus:border-primary transition-colors resize-y min-h-[200px]"
