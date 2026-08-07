@@ -229,13 +229,18 @@ export async function POST(req: NextRequest) {
                 const contactParts = venue.contactsAndPersonnel.split('\n');
                 for (const part of contactParts) {
                     if (part.toLowerCase().includes("phone:")) {
-                        phone = part.replace(/phone:/i, "").trim();
+                        const val = part.replace(/phone:/i, "").trim();
+                        phone = phone ? `${phone}\n${val}` : val;
                     } else if (part.toLowerCase().includes("personnel:")) {
-                        contactName = part.replace(/personnel:/i, "").trim();
+                        const val = part.replace(/personnel:/i, "").trim();
+                        contactName = contactName ? `${contactName}\n${val}` : val;
                     } else if (part.trim() !== "") {
                         // Fallback if labels are missing
-                        if (/\d/.test(part)) phone = part.trim();
-                        else contactName = part.trim();
+                        if (/\d/.test(part)) {
+                            phone = phone ? `${phone}\n${part.trim()}` : part.trim();
+                        } else {
+                            contactName = contactName ? `${contactName}\n${part.trim()}` : part.trim();
+                        }
                     }
                 }
                 
