@@ -207,38 +207,30 @@ export async function POST(req: NextRequest) {
 
         for (const venue of parsedVenues) {
             try {
-                // Split the name and address
-                const parts = venue.venueAndLocation.split('\n');
-                const venueName = parts[0] ? parts[0].trim() : '';
-                const address = parts.length > 1 ? parts.slice(1).join(', ').trim() : '';
-                
-                // Split the contacts (e.g. Phone vs Personnel)
-                const contactParts = venue.contactsAndPersonnel.split('\n');
-                const contactLine1 = contactParts[0] ? contactParts[0].trim() : '';
-                const contactLine2 = contactParts.length > 1 ? contactParts.slice(1).join(', ').trim() : '';
-                
-                let venueNameCell = venueName;
+                let venueNameCell = venue.venueAndLocation;
                 if (venue.link) {
+                    const parts = venue.venueAndLocation.split('\n');
+                    const venueName = parts[0] ? parts[0].trim() : '';
+                    const address = parts.length > 1 ? parts.slice(1).join(', ').trim() : '';
+                    
                     const safeName = venueName.replace(/"/g, '""'); // Escape quotes
-                    venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}")`; // Removed space after pushpin
+                    const safeAddress = address.replace(/"/g, '""'); // Escape quotes
+                    
+                    if (address) {
+                        venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}") & CHAR(10) & "${safeAddress}"`;
+                    } else {
+                        venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}")`;
+                    }
                 }
 
-                // Insert Row 1: The hyperlinked name and primary data
+                // Insert Row: Everything in one cell per column
                 const row1 = await sheet.addRow({
                     Venue_Location: venueNameCell,
-                    Contacts: contactLine1
+                    Contacts: venue.contactsAndPersonnel
                 });
                 
                 if (venue.link) {
                     hyperlinkedRowIndices.push(row1.rowNumber - 1); // 0-indexed for getCell
-                }
-                
-                // Insert Row 2: The address and secondary contact info
-                if (address || contactLine2) {
-                    await sheet.addRow({
-                        Venue_Location: address,
-                        Contacts: contactLine2,
-                    });
                 }
                 
                 exportedCount++;
