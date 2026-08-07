@@ -217,7 +217,8 @@ export async function POST(req: NextRequest) {
                     const safeAddress = address.replace(/"/g, '""'); // Escape quotes
                     
                     if (address) {
-                        venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}") & CHAR(10) & "${safeAddress}"`;
+                        // Put everything INSIDE the HYPERLINK function so the cell remains clickable
+                        venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}" & CHAR(10) & "${safeAddress}")`;
                     } else {
                         venueNameCell = `=HYPERLINK("${venue.link}", "📍${safeName}")`;
                     }
