@@ -193,13 +193,11 @@ export async function POST(req: NextRequest) {
         const parsedVenues = parseActivityVenues(dataRows);
         const sheet = doc.sheetsByIndex[0]; // Append to first tab
         
-        // Ensure headers exist (optional but good practice, assumes user sets them up)
-        try {
-             await sheet.loadHeaderRow();
-        } catch (e) {
-            // If it fails, sheet might be completely empty. We'll inject basic headers.
-            await sheet.setHeaderRow(["Venue_Location", "Contacts", "Link", "Activities", "Reviews", "Status"]);
-        }
+        // Ensure headers exist
+        await sheet.loadHeaderRow().catch(async () => {
+            // If the sheet is completely blank, we initialize the headers
+            await sheet.setHeaderRow(["Venue_Location", "Contacts"]);
+        });
 
         const errors: string[] = [];
         let exportedCount = 0;
